@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#12312d" />
+    <title>Europa · Trip Atlas</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-p4NxAoJBhIINfQHeeW5Z+0p3oCOy5dVsrhFQ8Q3LLN3L3Qoi6MLN6HyxxhtDg0Zk2E2ijbqH8zNH7QyGFqYLLA==" crossorigin="" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Europa Trip Atlas home"><span>EUROPA</span><i>Trip Atlas</i></a>
+      <nav aria-label="Page navigation">
+        <a href="#route">Route</a><a href="#explore">Explore</a><a href="#schedule">Schedule</a>
+      </nav>
+      <a class="header-action" href="#explore">Browse places <span>→</span></a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">26 September — 10 December 2026</p>
+          <h1>A big trip,<br /><em>one clear view.</em></h1>
+          <p class="lede">Your city-by-city Europe plan, organized around the things worth doing — wherever you are in the journey.</p>
+          <div class="hero-actions"><a class="button primary" href="#route">See the route <span>↘</span></a><a class="button ghost" href="#explore">Find an activity</a></div>
+        </div>
+        <div class="hero-panel">
+          <p class="panel-kicker">The plan, in numbers</p>
+          <div class="stat-grid">
+            <div><strong id="placeCount">406</strong><span>places saved</span></div>
+            <div><strong id="cityCount">27</strong><span>cities covered</span></div>
+            <div><strong id="dayCount">76</strong><span>days mapped</span></div>
+            <div><strong id="mustCount">149</strong><span>must-dos</span></div>
+          </div>
+          <div class="next-stop"><span class="pulse"></span><div><small>First stop</small><strong>Gdańsk, Poland</strong></div><b>SEP<br />26</b></div>
+        </div>
+      </section>
+
+      <section id="route" class="section route-section">
+        <div class="section-heading"><div><p class="eyebrow">Follow the journey</p><h2>Your route, plotted.</h2></div><p>Tap any marker to jump straight to that city’s saved places.</p></div>
+        <div class="map-wrap"><div id="map" aria-label="Interactive map of the trip route"></div><div class="map-note">Drag, zoom, or select a city</div></div>
+        <div id="routeStrip" class="route-strip" aria-label="Trip route cities"></div>
+      </section>
+
+      <section class="section stats-section">
+        <div class="section-heading"><div><p class="eyebrow">A little orientation</p><h2>What fills the trip.</h2></div><p>Your collection leans delightfully toward food, culture, and a good late night.</p></div>
+        <div class="viz-grid"><article class="card chart-card"><h3>Things to do, by type</h3><div id="typeChart" class="type-chart"></div></article><article class="card city-card"><h3>Most packed cities</h3><ol id="topCities"></ol></article><article class="card priority-card"><h3>Priority split</h3><div id="priorityChart" class="priority-chart"></div><div class="priority-legend" id="priorityLegend"></div></article></div>
+      </section>
+
+      <section id="explore" class="section explore-section">
+        <div class="section-heading"><div><p class="eyebrow">Your on-the-ground guide</p><h2>Explore saved places.</h2></div><p>Search a name or filter by city, moment, priority, and category.</p></div>
+        <div class="controls card">
+          <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search places, neighbourhoods, notes…" /></label>
+          <label><span>City</span><select id="cityFilter"><option value="all">All cities</option></select></label>
+          <label><span>Type</span><select id="typeFilter"><option value="all">All types</option></select></label>
+          <label><span>Priority</span><select id="priorityFilter"><option value="all">Any priority</option></select></label>
+          <label><span>Best time</span><select id="timeFilter"><option value="all">Any time</option></select></label>
+          <label><span>Sort</span><select id="sortSelect"><option value="priority">Priority first</option><option value="city">City A–Z</option><option value="type">Type A–Z</option><option value="name">Name A–Z</option></select></label>
+        </div>
+        <div class="results-meta"><strong id="resultCount"></strong><button id="clearFilters" type="button">Reset filters</button></div>
+        <div id="placeGrid" class="place-grid"></div>
+        <button id="showMore" class="button ghost show-more" type="button">Show more places</button>
+      </section>
+
+      <section id="schedule" class="section schedule-section">
+        <div class="section-heading"><div><p class="eyebrow">Day by day</p><h2>The rhythm of the trip.</h2></div><p>Use this as the fast answer to “what are we doing today?”</p></div>
+        <div class="schedule-tools"><label><span>Jump to a city</span><select id="scheduleCity"><option value="all">All dates</option></select></label><button id="todayButton" type="button" class="button ghost">Back to start</button></div>
+        <div id="itineraryList" class="itinerary-list"></div>
+      </section>
+    </main>
+    <footer><span>EUROPA · TRIP ATLAS</span><p>Built from your personal trip tracker. Update the workbook, then refresh the site data when plans change.</p></footer>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha512-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBoQ+1ECRN8sY8wjETj7MFmGdrEBDQ3zrMd/tyI4g0qj3Q==" crossorigin=""></script>
+    <script src="app.js"></script>
+  </body>
+</html>
