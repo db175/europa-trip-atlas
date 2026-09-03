@@ -6,7 +6,7 @@ let places=[],itinerary=[],visibleCount=18,map,markers={};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const unique=(arr)=>[...new Set(arr.filter(Boolean))];
 
-fetch('data/trip-data.json').then(r=>r.json()).then(data=>{places=data.places; itinerary=data.itinerary; init();}).catch(()=>{document.querySelector('main').innerHTML='<section class="section"><h1>Could not load trip data.</h1><p>Please open this site through a web server, not directly as a file.</p></section>';});
+fetch('data/trip-data.json').then(r=>{if(!r.ok)throw new Error(`Data request failed (${r.status})`);return r.json()}).then(data=>{places=data.places; itinerary=data.itinerary; init();}).catch(()=>{document.querySelector('main').innerHTML='<section class="section"><h1>Could not load trip data.</h1><p>Please refresh the page. If this persists, the published data file may be unavailable.</p></section>';});
 
 function init(){
   document.querySelector('#placeCount').textContent=places.length;
@@ -14,7 +14,7 @@ function init(){
   document.querySelector('#dayCount').textContent=itinerary.length;
   document.querySelector('#mustCount').textContent=places.filter(p=>p.priority==='Must').length;
   fillSelect('cityFilter',unique(places.map(p=>p.city)).sort()); fillSelect('typeFilter',unique(places.map(p=>p.type)).sort()); fillSelect('priorityFilter',['Must','Nice','If nearby']); fillSelect('timeFilter',unique(places.map(p=>p['best time'])).sort()); fillSelect('scheduleCity',unique(itinerary.map(p=>p.city)));
-  drawVisuals(); initMap(); renderRoute(); renderPlaces(); renderItinerary();
+  drawVisuals(); if(window.L){initMap()}else{document.querySelector('#map').innerHTML='<div class="empty">The map is temporarily unavailable, but all trip activities and filters are ready below.</div>'} renderRoute(); renderPlaces(); renderItinerary();
   ['searchInput','cityFilter','typeFilter','priorityFilter','timeFilter','sortSelect'].forEach(id=>document.querySelector('#'+id).addEventListener('input',()=>{visibleCount=18;renderPlaces()}));
   document.querySelector('#clearFilters').onclick=()=>{['searchInput','cityFilter','typeFilter','priorityFilter','timeFilter'].forEach(id=>document.querySelector('#'+id).value='all');document.querySelector('#searchInput').value='';document.querySelector('#sortSelect').value='priority';visibleCount=18;renderPlaces()};
   document.querySelector('#showMore').onclick=()=>{visibleCount+=18;renderPlaces()};
