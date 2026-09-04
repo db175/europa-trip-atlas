@@ -1,3 +1,14 @@
+# Single deployment workflow.
+#
+# This repository previously had TWO workflows (pages.yml and
+# jekyll-gh-pages.yml) both triggering on push to main, both claiming the
+# concurrency group "pages", and both deploying to the github-pages
+# environment with cancel-in-progress: false. They queued behind each other
+# and whichever finished last won, so the live build was nondeterministic.
+# jekyll-gh-pages.yml has been deleted: this is a plain static site with no
+# Liquid templates and no underscore-prefixed directories, so Jekyll added
+# nothing but a race.
+
 name: Deploy Europa Trip Atlas
 
 on:
@@ -15,20 +26,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out site
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Fails the build if data/trip-data.json has drifted from what the
+      # extractor produces, or if the JSON is malformed. Regenerating the
+      # data is a manual step because the master file is not committed.
+      - name: Validate published data
+        run: python3 scripts/validate_trip_data.py data/trip-data.json
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
   deploy:
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check out site
-        uses: actions/checkout@v6
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-      - name: Upload site
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: .
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

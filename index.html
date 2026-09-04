@@ -4,74 +4,225 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#12312d" />
+
+    <!-- This is a personal travel schedule. It records which city one household
+         sleeps in on each of 76 consecutive nights. Keep it out of search
+         indexes. See README "Privacy" before making the repository public. -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+
     <title>Europa · Trip Atlas</title>
-    <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-    <link rel="stylesheet" href="styles.css" />
+    <meta name="description" content="Private city-by-city plan for a Europe trip, 26 September to 10 December 2026." />
+
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+
+    <!-- Leaflet 1.9.4 is vendored in vendor/leaflet rather than pulled from a
+         CDN. The committed files hash-match Leaflet's own published SRI values
+         (sha256-p4NxAoJ... for the CSS, sha256-20nQCchB... for the JS), so the
+         integrity attribute is unnecessary: nothing is fetched cross-origin.
+         This also removes a third-party dependency from the critical path and
+         lets the service worker cache the map library for offline use. -->
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="styles.css?v=2" />
   </head>
   <body>
+    <a class="skip-link" href="#route">Skip to the route</a>
+
     <header class="topbar">
-      <a class="brand" href="#top" aria-label="Europa Trip Atlas home"><span>EUROPA</span><i>Trip Atlas</i></a>
-      <nav aria-label="Page navigation">
-        <a href="#route">Route</a><a href="#explore">Explore</a><a href="#schedule">Schedule</a>
+      <a class="brand" href="#top"><span>EUROPA</span><i>Trip Atlas</i></a>
+
+      <nav aria-label="Sections">
+        <a href="#route">Route</a>
+        <a href="#explore">Explore</a>
+        <a href="#schedule">Schedule</a>
       </nav>
-      <a class="header-action" href="#explore">Browse places <span>→</span></a>
+
+      <button
+        id="navToggle"
+        class="nav-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="mobileNav"
+      >
+        Menu
+      </button>
+
+      <a class="header-action" href="#explore">Browse places <span aria-hidden="true">→</span></a>
     </header>
+
+    <nav id="mobileNav" class="mobile-nav" aria-label="Sections" hidden>
+      <a href="#route">Route</a>
+      <a href="#explore">Explore</a>
+      <a href="#schedule">Schedule</a>
+    </nav>
+
+    <noscript>
+      <p class="noscript-banner">
+        This page needs JavaScript to load the trip data. The full plan is in
+        <code>data/trip-data.json</code> and in the master markdown file.
+      </p>
+    </noscript>
 
     <main id="top">
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">26 September — 10 December 2026</p>
           <h1>A big trip,<br /><em>one clear view.</em></h1>
-          <p class="lede">Your city-by-city Europe plan, organized around the things worth doing — wherever you are in the journey.</p>
-          <div class="hero-actions"><a class="button primary" href="#route">See the route <span>↘</span></a><a class="button ghost" href="#explore">Find an activity</a></div>
+          <p class="lede">
+            Your city-by-city Europe plan, organised around the things worth
+            doing — wherever you are in the journey.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#route">See the route <span aria-hidden="true">↘</span></a>
+            <a class="button ghost" href="#explore">Find an activity</a>
+          </div>
         </div>
+
         <div class="hero-panel">
           <p class="panel-kicker">The plan, in numbers</p>
-          <div class="stat-grid">
-            <div><strong id="placeCount">406</strong><span>places saved</span></div>
-            <div><strong id="cityCount">27</strong><span>cities covered</span></div>
-            <div><strong id="dayCount">76</strong><span>days mapped</span></div>
-            <div><strong id="mustCount">149</strong><span>must-dos</span></div>
+
+          <!-- Placeholders are em dashes, never plausible-looking numbers.
+               The old build hard-coded 406/27/76/149 here and then let JS
+               replace them with smaller values, so the page briefly showed
+               true figures and then false ones. -->
+          <div class="stat-grid" id="statGrid" aria-live="polite" aria-busy="true">
+            <div><strong id="placeCount">—</strong><span>places saved</span></div>
+            <div><strong id="cityCount">—</strong><span>cities covered</span></div>
+            <div><strong id="dayCount">—</strong><span>days mapped</span></div>
+            <div><strong id="mustCount">—</strong><span>must-dos</span></div>
           </div>
-          <div class="next-stop"><span class="pulse"></span><div><small>First stop</small><strong>Gdańsk, Poland</strong></div><b>SEP<br />26</b></div>
+
+          <div class="next-stop">
+            <span class="pulse" aria-hidden="true"></span>
+            <div>
+              <small id="nextStopLabel">Next stop</small>
+              <strong id="nextStopCity">—</strong>
+            </div>
+            <b id="nextStopDate" aria-hidden="true">—</b>
+          </div>
         </div>
       </section>
 
-      <section id="route" class="section route-section">
-        <div class="section-heading"><div><p class="eyebrow">Follow the journey</p><h2>Your route, plotted.</h2></div><p>Tap any marker to jump straight to that city’s saved places.</p></div>
-        <div class="map-wrap"><div id="map" aria-label="Interactive map of the trip route"></div><div class="map-note">Drag, zoom, or select a city</div></div>
-        <div id="routeStrip" class="route-strip" aria-label="Trip route cities"></div>
+      <section id="route" class="section route-section" aria-labelledby="routeHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Follow the journey</p>
+            <h2 id="routeHeading">Your route, plotted.</h2>
+          </div>
+          <p>Select any marker to jump straight to that city's saved places.</p>
+        </div>
+
+        <div class="map-wrap">
+          <div id="map" role="region" aria-label="Map of the trip route"></div>
+          <p class="map-note">Drag, zoom, or select a city</p>
+        </div>
+
+        <div id="routeStrip" class="route-strip" role="group" aria-label="Cities in route order"></div>
+        <p class="route-legend" id="routeLegend"></p>
       </section>
 
-      <section class="section stats-section">
-        <div class="section-heading"><div><p class="eyebrow">A little orientation</p><h2>What fills the trip.</h2></div><p>Your collection leans delightfully toward food, culture, and a good late night.</p></div>
-        <div class="viz-grid"><article class="card chart-card"><h3>Things to do, by type</h3><div id="typeChart" class="type-chart"></div></article><article class="card city-card"><h3>Most packed cities</h3><ol id="topCities"></ol></article><article class="card priority-card"><h3>Priority split</h3><div id="priorityChart" class="priority-chart"></div><div class="priority-legend" id="priorityLegend"></div></article></div>
+      <section class="section stats-section" aria-labelledby="statsHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">A little orientation</p>
+            <h2 id="statsHeading">What fills the trip.</h2>
+          </div>
+          <p>Where the saved places cluster, by kind, by city, and by priority.</p>
+        </div>
+
+        <div class="viz-grid">
+          <article class="card chart-card">
+            <h3>Things to do, by type</h3>
+            <div id="typeChart" class="type-chart"></div>
+          </article>
+          <article class="card city-card">
+            <h3>Most packed cities</h3>
+            <ol id="topCities"></ol>
+          </article>
+          <article class="card priority-card">
+            <h3>Priority split</h3>
+            <div id="priorityChart" class="priority-chart" role="img" aria-label="Priority split"></div>
+            <div class="priority-legend" id="priorityLegend"></div>
+          </article>
+        </div>
       </section>
 
-      <section id="explore" class="section explore-section">
-        <div class="section-heading"><div><p class="eyebrow">Your on-the-ground guide</p><h2>Explore saved places.</h2></div><p>Search a name or filter by city, moment, priority, and category.</p></div>
+      <section id="explore" class="section explore-section" aria-labelledby="exploreHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Your on-the-ground guide</p>
+            <h2 id="exploreHeading">Explore saved places.</h2>
+          </div>
+          <p>Search a name or filter by city, moment, priority, and category.</p>
+        </div>
+
         <div class="controls card">
-          <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search places, neighbourhoods, notes…" /></label>
-          <label><span>City</span><select id="cityFilter"><option value="all">All cities</option></select></label>
-          <label><span>Type</span><select id="typeFilter"><option value="all">All types</option></select></label>
-          <label><span>Priority</span><select id="priorityFilter"><option value="all">Any priority</option></select></label>
-          <label><span>Best time</span><select id="timeFilter"><option value="all">Any time</option></select></label>
-          <label><span>Sort</span><select id="sortSelect"><option value="priority">Priority first</option><option value="city">City A–Z</option><option value="type">Type A–Z</option><option value="name">Name A–Z</option></select></label>
+          <label class="search">
+            <span class="label-text">Search</span>
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="searchInput" type="search" placeholder="Name, area, or why it made the list…" />
+          </label>
+          <label><span class="label-text">City</span><select id="cityFilter"><option value="all">All cities</option></select></label>
+          <label><span class="label-text">Type</span><select id="typeFilter"><option value="all">All types</option></select></label>
+          <label><span class="label-text">Priority</span><select id="priorityFilter"><option value="all">Any priority</option></select></label>
+          <label><span class="label-text">Best time</span><select id="timeFilter"><option value="all">Any time</option></select></label>
+          <label><span class="label-text">Cost</span><select id="costFilter"><option value="all">Any cost</option></select></label>
+          <label><span class="label-text">Sort</span>
+            <select id="sortSelect">
+              <option value="priority">Priority first</option>
+              <option value="city">City A–Z</option>
+              <option value="type">Type A–Z</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </label>
         </div>
-        <div class="results-meta"><strong id="resultCount"></strong><button id="clearFilters" type="button">Reset filters</button></div>
+
+        <div class="results-meta">
+          <strong id="resultCount" aria-live="polite"></strong>
+          <button id="clearFilters" type="button">Reset filters</button>
+        </div>
+
         <div id="placeGrid" class="place-grid"></div>
         <button id="showMore" class="button ghost show-more" type="button">Show more places</button>
       </section>
 
-      <section id="schedule" class="section schedule-section">
-        <div class="section-heading"><div><p class="eyebrow">Day by day</p><h2>The rhythm of the trip.</h2></div><p>Use this as the fast answer to “what are we doing today?”</p></div>
-        <div class="schedule-tools"><label><span>Jump to a city</span><select id="scheduleCity"><option value="all">All dates</option></select></label><button id="todayButton" type="button" class="button ghost">Back to start</button></div>
+      <section id="schedule" class="section schedule-section" aria-labelledby="scheduleHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Day by day</p>
+            <h2 id="scheduleHeading">The rhythm of the trip.</h2>
+          </div>
+          <p>Every one of the 76 days, with the heavy ones marked.</p>
+        </div>
+
+        <div class="schedule-tools">
+          <label><span class="label-text">Jump to a city</span>
+            <select id="scheduleCity"><option value="all">All dates</option></select>
+          </label>
+          <div class="schedule-buttons">
+            <button id="todayButton" type="button" class="button ghost">Go to today</button>
+            <button id="heavyToggle" type="button" class="button ghost" aria-pressed="false">
+              Heavy days only
+            </button>
+          </div>
+        </div>
+
+        <p class="schedule-status" id="scheduleStatus" aria-live="polite"></p>
         <div id="itineraryList" class="itinerary-list"></div>
       </section>
     </main>
-    <footer><span>EUROPA · TRIP ATLAS</span><p>Built from your personal trip tracker. Update the workbook, then refresh the site data when plans change.</p></footer>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="app.js"></script>
+
+    <footer>
+      <span>EUROPA · TRIP ATLAS</span>
+      <p>
+        Built from <code>Europe_2026_Master_Trip_File.md</code> by
+        <code>scripts/extract_trip_data.py</code>. Re-run that script after
+        editing the master file, then commit the regenerated JSON.
+        <br /><span id="dataStamp"></span>
+      </p>
+    </footer>
+
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <script src="app.js?v=2"></script>
   </body>
 </html>

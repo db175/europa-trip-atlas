@@ -1,0 +1,15 @@
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+*.log
+.idea/
+.vscode/
+
+# Source planning documents are personal. Keep them out of the repo unless
+# you have decided the repository should be private.
+Europe_2026_Master_Trip_File.md
+*.xlsx

@@ -1,0 +1,4 @@
+# This site publishes one household's overnight location for 76 consecutive
+# nights. It should not be indexed. See README "Privacy".
+User-agent: *
+Disallow: /

@@ -1,0 +1,13 @@
+{
+  "name": "Europa Trip Atlas",
+  "short_name": "Europa",
+  "description": "City-by-city plan for a Europe trip, 26 September to 10 December 2026.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f4ed",
+  "theme_color": "#12312d",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
