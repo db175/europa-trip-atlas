@@ -10,15 +10,15 @@
  * or self-hosted tiles), you can add the tile host here.
  */
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL = `europa-shell-${VERSION}`;
 const DATA = `europa-data-${VERSION}`;
 
 const SHELL_FILES = [
   './',
   './index.html',
-  './styles.css?v=4',
-  './app.js?v=4',
+  './styles.css?v=5',
+  './app.js?v=5',
   './favicon.svg',
   './manifest.webmanifest',
   './404.html',

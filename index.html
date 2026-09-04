@@ -23,7 +23,7 @@
          This also removes a third-party dependency from the critical path and
          lets the service worker cache the map library for offline use. -->
     <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=5" />
   </head>
   <body>
     <a class="skip-link" href="#route">Skip to the route</a>
@@ -55,6 +55,40 @@
       <a href="#explore">Explore</a>
       <a href="#schedule">Schedule</a>
     </nav>
+
+    <!-- A passphrase curtain, not access control.
+
+         This is a static site. The check below runs in the browser, so the
+         passphrase is readable in app.js by anyone who looks, and
+         data/trip-data.json can still be fetched directly at its own URL
+         without loading this page at all. It stops idle browsing by someone
+         handed the link. It does not protect the data.
+
+         The real fix is an authenticating host (Cloudflare Access or similar)
+         in front of every file. GitHub's own Pages access control needs
+         Enterprise Cloud, and a private source repo does not make the
+         published site private. -->
+    <div id="gate" class="gate" hidden>
+      <form id="gateForm" class="gate-card">
+        <p class="eyebrow">Europa · Trip Atlas</p>
+        <h1>Enter the passphrase.</h1>
+        <label class="gate-field">
+          <span class="sr-only">Passphrase</span>
+          <input
+            id="gateInput"
+            type="password"
+            autocomplete="current-password"
+            inputmode="numeric"
+            aria-describedby="gateError"
+            required
+          />
+        </label>
+        <button class="button primary" type="submit">Open the atlas</button>
+        <p class="gate-error" id="gateError" role="alert" hidden>
+          That is not it. Try again.
+        </p>
+      </form>
+    </div>
 
     <noscript>
       <p class="noscript-banner">
@@ -266,6 +300,6 @@
     </footer>
 
     <script src="vendor/leaflet/leaflet.js"></script>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
   </body>
 </html>

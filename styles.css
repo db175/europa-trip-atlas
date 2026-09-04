@@ -1485,3 +1485,96 @@ body.city-open #schedule {
     order: 1;
   }
 }
+
+/* ---------------------------------------------------------------- gate --- */
+
+/* The passphrase curtain. See the comment above #gate in index.html: this is
+ * a curtain, not access control.
+ *
+ * Contrast on --deep #0d2622: --lime #bddb68 at 10.24:1, --accent-on-deep
+ * #ff7a5c at 6.22:1, both against a 4.5:1 requirement (WCAG 2.1 SC 1.4.3).
+ */
+
+body.gate-open {
+  overflow: hidden;
+}
+
+/* The page behind stays in the DOM but is not reachable by tab or by screen
+ * reader while the gate is up. */
+body.gate-open .topbar,
+body.gate-open .mobile-nav,
+body.gate-open main,
+body.gate-open footer,
+body.gate-open .skip-link {
+  display: none;
+}
+
+/* [hidden] sets display:none at user-agent level, but the display:flex below
+ * is a more specific author rule and wins. Without this the dismissed gate
+ * stays invisible and full-screen, swallowing every click on the page. */
+.gate[hidden] {
+  display: none;
+}
+
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--deep);
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 360px;
+}
+
+.gate-card .eyebrow {
+  color: var(--accent-on-deep);
+  margin: 0;
+}
+
+.gate-card h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.05;
+  font-weight: 400;
+  color: #f9f6ef;
+  margin: 10px 0 22px;
+}
+
+.gate-field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.gate-field input {
+  width: 100%;
+  padding: 13px 14px;
+  font: inherit;
+  font-size: 17px; /* 16px or more, or iOS Safari zooms the page on focus. */
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.gate-field input:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+
+.gate-card .button.primary {
+  width: 100%;
+  justify-content: center;
+}
+
+.gate-error {
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-on-deep);
+}

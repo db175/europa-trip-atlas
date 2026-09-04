@@ -94,7 +94,73 @@ const unique = (arr) => [...new Set(arr.filter(Boolean))];
 
 /* ---------------------------------------------------------------- boot ---- */
 
-fetch('data/trip-data.json?v=4')
+/* A passphrase curtain. Read the comment above #gate in index.html before
+ * relying on this for anything: the passphrase is sitting in this file, which
+ * is public, and data/trip-data.json can be fetched directly without ever
+ * loading index.html. It raises the bar on idle browsing and nothing else.
+ *
+ * The boot is gated rather than the display, so the trip data is not requested
+ * at all until the passphrase is entered. sessionStorage, not localStorage, so
+ * closing the tab re-locks it.
+ */
+const PASSPHRASE = '123';
+const UNLOCK_KEY = 'europa-unlocked';
+
+function unlocked() {
+  try {
+    return sessionStorage.getItem(UNLOCK_KEY) === '1';
+  } catch (err) {
+    // Private browsing can throw on storage access. Fall back to asking every
+    // time rather than failing open or failing to load.
+    return false;
+  }
+}
+
+function showGate() {
+  const gate = document.getElementById('gate');
+  const form = document.getElementById('gateForm');
+  const input = document.getElementById('gateInput');
+  const error = document.getElementById('gateError');
+  if (!gate || !form || !input) {
+    // No gate markup means an older cached index.html. Load rather than lock
+    // the owner out of their own trip plan on the day they need it.
+    console.warn('Passphrase gate markup missing; continuing without it.');
+    boot();
+    return;
+  }
+
+  document.body.classList.add('gate-open');
+  gate.hidden = false;
+  input.focus();
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value !== PASSPHRASE) {
+      if (error) error.hidden = false;
+      input.value = '';
+      input.focus();
+      return;
+    }
+    try {
+      sessionStorage.setItem(UNLOCK_KEY, '1');
+    } catch (err) {
+      // Not fatal: this session still opens, the next one asks again.
+    }
+    document.body.classList.remove('gate-open');
+    gate.hidden = true;
+    boot();
+  });
+}
+
+if (unlocked()) boot();
+else if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', showGate);
+} else {
+  showGate();
+}
+
+function boot() {
+  return fetch('data/trip-data.json?v=5')
   .then((r) => {
     if (!r.ok) throw new Error(`Data request failed (HTTP ${r.status})`);
     return r.json();
@@ -119,13 +185,14 @@ fetch('data/trip-data.json?v=4')
     console.error('Trip data could not be loaded:', err);
     showFatal(err);
   });
+}
 
 /* Personal places. A missing file, a malformed file, a wrong version or a
  * stalled request all yield an empty list and ONE console warning. None of
  * them may break the page: the file is optional by design, and the 406
  * tracker places must render whether or not it exists. */
 function loadPersonalPlaces() {
-  const request = fetch('data/my-places.json?v=4')
+  const request = fetch('data/my-places.json?v=5')
     .then((r) => {
       // 404 is the normal state before the first personal place is added, but
       // it is still reported once, so a file that fails to publish is visible
