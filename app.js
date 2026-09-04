@@ -74,6 +74,11 @@ const state = {
   heavyOnly: false,
   map: null,
   markers: {},
+  // The city view at #city/<slug>. Its Leaflet instance is separate from the
+  // route map and is torn down when the view closes, so the two never share
+  // a container or a zoom level.
+  cityMap: null,
+  cityName: null,
 };
 
 // The working list for search, filters and the place grid. Tracker places
@@ -89,7 +94,7 @@ const unique = (arr) => [...new Set(arr.filter(Boolean))];
 
 /* ---------------------------------------------------------------- boot ---- */
 
-fetch('data/trip-data.json?v=3')
+fetch('data/trip-data.json?v=4')
   .then((r) => {
     if (!r.ok) throw new Error(`Data request failed (HTTP ${r.status})`);
     return r.json();
@@ -120,7 +125,7 @@ fetch('data/trip-data.json?v=3')
  * them may break the page: the file is optional by design, and the 406
  * tracker places must render whether or not it exists. */
 function loadPersonalPlaces() {
-  const request = fetch('data/my-places.json?v=3')
+  const request = fetch('data/my-places.json?v=4')
     .then((r) => {
       // 404 is the normal state before the first personal place is added, but
       // it is still reported once, so a file that fails to publish is visible
@@ -187,6 +192,9 @@ function init() {
   step('places', renderPlaces);
   step('itinerary', renderItinerary);
   step('listeners', bindListeners);
+  // Last, so a bad hash in a bookmark cannot stop the rest of the page from
+  // rendering behind it.
+  step('cityRoute', routeFromHash);
 }
 
 /* --------------------------------------------------------------- stats ---- */
@@ -244,7 +252,15 @@ function renderNextStop() {
 
   $('#nextStopLabel').textContent = label;
   const city = row.baseCity || row.base;
-  $('#nextStopCity').textContent = row.country ? `${city}, ${row.country}` : city;
+  const shown = row.country ? `${city}, ${row.country}` : city;
+
+  // "The city I am in" is the one place this feature is most wanted from, so
+  // it is a link when there is anything to show. Transit days, which have no
+  // saved places, stay as plain text rather than offering an empty page.
+  const saved = allPlaces().filter((p) => p.city === city).length;
+  $('#nextStopCity').innerHTML = saved
+    ? `<a href="#city/${esc(citySlug(city))}">${esc(shown)}</a>`
+    : esc(shown);
 
   const d = parseDate(row.date);
   $('#nextStopDate').innerHTML = d
@@ -388,9 +404,13 @@ function initMap() {
         `<strong>${esc(leg.city)}</strong><br>${nights} night${nights === 1 ? '' : 's'}` +
           (visits > 1 ? ` across ${visits} stays` : '') +
           `<br>${count || 'No'} saved place${count === 1 ? '' : 's'}` +
-          (mine ? ` <br>★ ${mine} of your own` : '')
+          (mine ? ` <br>★ ${mine} of your own` : '') +
+          // A plain hash link, so the popup keeps working if a click handler
+          // ever throws, and the target can be opened in a new tab.
+          (count
+            ? `<br><a class="popup-link" href="#city/${esc(citySlug(leg.city))}">Open the city page</a>`
+            : '')
       );
-    marker.on('click', () => selectCity(leg.city));
     if (!seen.has(leg.city)) {
       state.markers[leg.city] = marker;
       seen.add(leg.city);
@@ -402,13 +422,18 @@ function initMap() {
   const dayStops = [];
   state.itinerary.forEach((r) => (r.stops || []).forEach((s) => dayStops.push(s)));
   dayStops.forEach((s) => {
+    const saved = allPlaces().filter((p) => p.city === s.name).length;
     L.marker([s.lat, s.lon], {
       icon: L.divIcon({ className: 'stop-marker', iconSize: [10, 10] }),
       title: s.name,
     })
       .addTo(map)
-      .bindPopup(`<strong>${esc(s.name)}</strong><br>Day stop, no overnight`)
-      .on('click', () => selectCity(s.name));
+      .bindPopup(
+        `<strong>${esc(s.name)}</strong><br>Day stop, no overnight` +
+        (saved
+          ? `<br><a class="popup-link" href="#city/${esc(citySlug(s.name))}">Open the city page</a>`
+          : '')
+      );
   });
 
   // Branch A spur to Dortmund for the Champions League match.
@@ -450,8 +475,11 @@ function renderRoute() {
         `<button class="route-city" type="button" aria-pressed="false" data-city="${esc(c)}">${esc(c)}</button>`
     )
     .join('');
+  // Selecting a city now opens that city's page rather than only filtering
+  // Explore. The filter is still one click away, from the button at the top of
+  // the city page.
   document.querySelectorAll('.route-city').forEach((btn) => {
-    btn.addEventListener('click', () => selectCity(btn.dataset.city));
+    btn.addEventListener('click', () => openCity(btn.dataset.city));
   });
 }
 
@@ -473,6 +501,406 @@ function selectCity(city) {
     marker.openPopup();
   }
   $('#explore').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ----------------------------------------------------------- city view ---- */
+
+/* A per-city page reached at #city/<slug>.
+ *
+ * The neighbourhood list is the primary content and the map is secondary.
+ * That order is forced by the data, not by preference. scripts/audit_places.py
+ * measured 75 of 406 places with a real position, all of them in Amsterdam,
+ * Ghent and Luxembourg City; the other 24 cities have none. A map-first city
+ * page would therefore be empty for almost every city on the trip. Areas, by
+ * contrast, are recorded on 399 of 406 places.
+ *
+ * A city centroid is never drawn as if it were the place. Places without a
+ * real position are listed, left off the map, and the shortfall is stated in
+ * words. As coordinates get filled in the master file, places move from the
+ * list to the map on their own.
+ */
+
+// The same rule as COORD_PAIR in scripts/coords.py: both halves need a decimal
+// point and at least three decimals, so street numbers, postcodes and price
+// ranges cannot match. Deliberately written without a lookbehind. An
+// unsupported (?<!...) is a parse-time SyntaxError, which would take this whole
+// file down on an older browser instead of failing one function.
+const COORD_PAIR = /(^|[^\d.])(-?\d{1,3}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})(?![\d.])/;
+
+const CITY_ROUTE = /^#city\/(.+)$/;
+
+const foldText = (s) =>
+  String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Matches slugify() in scripts/coords.py for every name in city_reference.json,
+// which is asserted in the test suite rather than assumed.
+const slugify = (s) =>
+  foldText(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+function inRange(lat, lon) {
+  return (
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+  );
+}
+
+/* Resolve one place to a plottable position, or null.
+ *
+ * Reads both data shapes. After the next extractor run every place carries
+ * lat/lon/coordSource/coordPrecision; the committed data/trip-data.json is
+ * still the pre-M2 file, where the same pairs sit as text in the tracker's own
+ * "address or coordinates" column. Both are handled, so the feature works
+ * before and after that run.
+ *
+ * A city centroid is rejected on either field, so losing one of them in a
+ * hand-edited row still cannot promote an inferred point to a real one.
+ */
+function exactCoords(p) {
+  if (p.coordSource === 'cityCentroid' || p.coordPrecision === 'approx') return null;
+  if (inRange(p.lat, p.lon)) return { lat: p.lat, lon: p.lon };
+  const m = COORD_PAIR.exec(String(p['address or coordinates'] || ''));
+  if (!m) return null;
+  const lat = parseFloat(m[2]);
+  const lon = parseFloat(m[3]);
+  return inRange(lat, lon) ? { lat, lon } : null;
+}
+
+function citySlug(name) {
+  const row = state.cities[name];
+  return (row && row.slug) || slugify(name);
+}
+
+function cityFromSlug(slug) {
+  const want = String(slug || '').toLowerCase();
+  const names = unique(
+    Object.keys(state.cities).concat(allPlaces().map((p) => p.city))
+  );
+  return names.find((n) => citySlug(n) === want) || null;
+}
+
+/* Group a city's places into areas.
+ *
+ * Day trips come out first and are counted separately. Every one of the seven
+ * places with a blank neighbourhood is a day trip (Bruges, Antwerp, Brussels,
+ * Utrecht, Haarlem, Rotterdam, Zaanse Schans), so pulling day trips out also
+ * empties the "area not recorded" bucket. It is still built, because the next
+ * data refresh could add a blank that is not a day trip.
+ */
+function cityGroups(city) {
+  const rows = allPlaces().filter((p) => p.city === city);
+  const trips = rows.filter((p) => p.type === 'day trip');
+  const inTown = rows.filter((p) => p.type !== 'day trip');
+
+  const byArea = new Map();
+  inTown.forEach((p) => {
+    const key = String(p.neighbourhood || '').trim() || 'Area not recorded';
+    if (!byArea.has(key)) byArea.set(key, []);
+    byArea.get(key).push(p);
+  });
+
+  const areas = [...byArea.entries()]
+    .map(([name, places]) => ({
+      name,
+      places,
+      must: places.filter((p) => p.priority === 'Must').length,
+      mapped: places.filter((p) => exactCoords(p)).length,
+    }))
+    .sort((a, b) =>
+      b.places.length - a.places.length ||
+      b.must - a.must ||
+      a.name.localeCompare(b.name)
+    );
+
+  return {
+    rows,
+    trips,
+    // 132 of the 208 (city, area) pairs hold exactly one place. Left inline
+    // they bury the areas that actually cluster, so they collapse into one
+    // group at the bottom.
+    areas: areas.filter((a) => a.places.length > 1),
+    singles: areas.filter((a) => a.places.length === 1),
+  };
+}
+
+function openCity(city) {
+  const slug = citySlug(city);
+  if (location.hash === '#city/' + slug) renderCityView(city);
+  else location.hash = '#city/' + slug;
+}
+
+function closeCityView() {
+  document.body.classList.remove('city-open');
+  const section = $('#cityView');
+  if (section) section.hidden = true;
+  if (state.cityMap) {
+    state.cityMap.remove();
+    state.cityMap = null;
+  }
+  state.cityName = null;
+}
+
+/* Called on load and on every hash change. Anything that is not a #city/<slug>
+ * route closes the view and lets the normal in-page anchors work. */
+function routeFromHash() {
+  const match = CITY_ROUTE.exec(location.hash || '');
+  if (!match) {
+    closeCityView();
+    return;
+  }
+  let slug;
+  try {
+    slug = decodeURIComponent(match[1]);
+  } catch (err) {
+    slug = match[1];
+  }
+  const city = cityFromSlug(slug);
+  if (!city) {
+    // A stale bookmark should say so rather than silently showing the homepage.
+    renderCityMissing(slug);
+    return;
+  }
+  renderCityView(city);
+}
+
+function renderCityMissing(slug) {
+  const section = $('#cityView');
+  if (!section) return;
+  document.body.classList.add('city-open');
+  section.hidden = false;
+  $('#cityViewHeading').textContent = 'No such city';
+  $('#citySub').textContent =
+    `Nothing in this trip has the address "${slug}". The city may have been ` +
+    'renamed in the master file.';
+  $('#cityCoverage').textContent = '';
+  $('#cityAreas').innerHTML = '';
+  $('#cityDayTrips').innerHTML = '';
+  $('#cityMapWrap').hidden = true;
+  $('#cityToExplore').hidden = true;
+  window.scrollTo(0, 0);
+}
+
+function renderCityView(city) {
+  const section = $('#cityView');
+  if (!section) return;
+
+  state.cityName = city;
+  document.body.classList.add('city-open');
+  section.hidden = false;
+  $('#cityToExplore').hidden = false;
+
+  const groups = cityGroups(city);
+  const info = state.cities[city] || {};
+  const stays = state.route.filter((r) => r.city === city);
+  const nights = stays.reduce((sum, r) => sum + (r.nights || 0), 0);
+  const mine = groups.rows.filter((p) => p.origin === 'personal').length;
+
+  $('#cityViewHeading').textContent = city;
+
+  const bits = [];
+  if (info.country) bits.push(info.country);
+  if (nights) {
+    bits.push(
+      `${nights} night${nights === 1 ? '' : 's'}` +
+      (stays.length > 1 ? ` across ${stays.length} stays` : '')
+    );
+  }
+  bits.push(`${groups.rows.length} saved place${groups.rows.length === 1 ? '' : 's'}`);
+  if (mine) bits.push(`★ ${mine} of your own`);
+  $('#citySub').textContent = bits.join(' · ');
+
+  $('#cityToExplore').textContent = `Show all ${groups.rows.length} in Explore`;
+
+  // The whole list is built before the map is touched, so a Leaflet failure
+  // cannot cost the part of the page that carries the actual content.
+  renderCityAreas(groups);
+  renderCityTrips(city, groups);
+  renderCityCoverage(groups);
+  step('cityMap', () => renderCityMap(city, groups));
+
+  window.scrollTo(0, 0);
+  $('#cityViewHeading').focus();
+}
+
+function renderCityCoverage(groups) {
+  const total = groups.rows.length;
+  const mapped = groups.rows.filter((p) => exactCoords(p)).length;
+  const el = $('#cityCoverage');
+  if (!el) return;
+
+  el.textContent = mapped
+    ? `${mapped} of ${total} place${total === 1 ? '' : 's'} ` +
+      `${mapped === 1 ? 'has' : 'have'} a recorded location. ` +
+      `The other ${total - mapped} are listed here but not on the map.`
+    : 'None of these places has a recorded location yet, so the map is empty. ' +
+      'Fill the coordinates with scripts/coord_worksheet.py and they appear here.';
+  el.classList.toggle('is-empty', mapped === 0);
+}
+
+function renderCityAreas(groups) {
+  const host = $('#cityAreas');
+  if (!host) return;
+
+  if (!groups.areas.length && !groups.singles.length) {
+    host.innerHTML =
+      '<p class="empty">No in-town places saved for this city yet.</p>';
+    return;
+  }
+
+  // The densest area opens by default; everything below it starts closed so the
+  // shape of the city is readable in one screen.
+  const blocks = groups.areas.map((a, i) => areaBlock(a, i === 0));
+
+  if (groups.singles.length) {
+    const rows = groups.singles
+      .map(
+        (a) =>
+          `<li class="single-area"><b>${esc(a.name)}</b>${placeRow(a.places[0])}</li>`
+      )
+      .join('');
+    blocks.push(
+      '<details class="area area-singles">' +
+      '<summary><span class="area-name">' +
+      `${groups.singles.length} other area${groups.singles.length === 1 ? '' : 's'}` +
+      '</span>' +
+      `<span class="area-count">${groups.singles.length} place${groups.singles.length === 1 ? '' : 's'}</span>` +
+      `</summary><ul class="area-places">${rows}</ul></details>`
+    );
+  }
+
+  host.innerHTML = `<h3 class="city-subhead">Areas</h3>${blocks.join('')}`;
+}
+
+function areaBlock(a, open) {
+  const counts = [`${a.places.length} places`];
+  if (a.must) counts.push(`${a.must} must`);
+  return (
+    `<details class="area"${open ? ' open' : ''}>` +
+    `<summary><span class="area-name">${esc(a.name)}</span>` +
+    `<span class="area-count">${esc(counts.join(' · '))}</span></summary>` +
+    `<ul class="area-places">${a.places.map((p) => `<li>${placeRow(p)}</li>`).join('')}</ul>` +
+    '</details>'
+  );
+}
+
+function renderCityTrips(city, groups) {
+  const host = $('#cityDayTrips');
+  if (!host) return;
+  if (!groups.trips.length) {
+    host.innerHTML = '';
+    return;
+  }
+
+  // Out-of-town by definition: every place further than 5 km from its city
+  // centroid is typed "day trip" in this data. They are kept out of the map
+  // bounds below, because Rotterdam at 57 km would zoom Amsterdam to
+  // uselessness.
+  const n = groups.trips.length;
+  host.innerHTML =
+    '<details class="area area-trips">' +
+    `<summary><span class="area-name">${n} trip${n === 1 ? '' : 's'} out of ${esc(city)}</span>` +
+    '<span class="area-count">not in town</span></summary>' +
+    `<ul class="area-places">${groups.trips.map((p) => `<li>${placeRow(p)}</li>`).join('')}</ul>` +
+    '</details>';
+}
+
+function placeRow(p) {
+  const mine = p.origin === 'personal';
+  const priority = p.priority || 'Nice';
+  const maps = p['maps link'];
+  // Only a real http(s) link is rendered. 154 of the 406 maps link values are
+  // not usable URLs: 46 are the bare word "maps", 12 are empty and 95 have no
+  // scheme, and those rendered as broken links on the old place cards.
+  const href = /^https?:\/\//i.test(String(maps || '')) ? maps : '';
+
+  return (
+    `<div class="city-place${mine ? ' is-mine' : ''}">` +
+    '<div class="city-place-top">' +
+    `<span class="city-place-name">${mine ? '<span class="mine-chip">★ MY PICK</span> ' : ''}${esc(p.name)}</span>` +
+    `<span class="priority ${priority === 'Must' ? 'must' : ''}">${esc(priority)}</span>` +
+    '</div>' +
+    `<p class="city-place-why">${esc(p['why it made the list'] || 'Saved for this trip.')}</p>` +
+    '<p class="city-place-meta">' +
+    `<span class="tag">${esc(p.type)}</span>` +
+    (p['opening hours'] ? ` · ${esc(p['opening hours'])}` : '') +
+    (exactCoords(p) ? '' : ' · <span class="no-fix">no location recorded</span>') +
+    (href
+      ? ` · <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open map<span class="sr-only"> (opens in a new tab)</span></a>`
+      : '') +
+    '</p></div>'
+  );
+}
+
+function renderCityMap(city, groups) {
+  const wrap = $('#cityMapWrap');
+  const el = $('#cityMap');
+  const note = $('#cityMapNote');
+  if (!wrap || !el) return;
+  wrap.hidden = false;
+
+  if (state.cityMap) {
+    state.cityMap.remove();
+    state.cityMap = null;
+  }
+  el.innerHTML = '';
+
+  const inTown = [];
+  const trips = [];
+  groups.rows.forEach((p) => {
+    const c = exactCoords(p);
+    if (!c) return;
+    (p.type === 'day trip' ? trips : inTown).push({ place: p, coords: c });
+  });
+
+  if (!inTown.length && !trips.length) {
+    // Not an error state, and not dressed up as one. Most cities are here.
+    el.innerHTML =
+      '<p class="empty">Nothing to plot yet. Every place in ' +
+      `${esc(city)} is in the list, none has coordinates.</p>`;
+    if (note) note.hidden = true;
+    return;
+  }
+
+  if (!window.L) {
+    el.innerHTML =
+      '<p class="empty">The map library did not load. The areas and places ' +
+      'on the left are unaffected.</p>';
+    if (note) note.hidden = true;
+    return;
+  }
+
+  const map = L.map(el, { scrollWheelZoom: false, zoomControl: false });
+  state.cityMap = map;
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.tileLayer(TILES.url, TILES.options).addTo(map);
+
+  const add = (entry, className) => {
+    const { place, coords } = entry;
+    L.marker([coords.lat, coords.lon], {
+      icon: L.divIcon({ className, iconSize: [12, 12] }),
+      title: place.name,
+    })
+      .addTo(map)
+      .bindPopup(
+        `<strong>${esc(place.name)}</strong><br>${esc(place.neighbourhood || place.type)}` +
+        `<br>${esc(place.priority || 'Nice')}`
+      );
+  };
+  inTown.forEach((e) => add(e, 'place-marker'));
+  trips.forEach((e) => add(e, 'trip-marker'));
+
+  // Bounds come from the in-town places only. Day trips are still drawn, so
+  // they can be found by zooming out, but they never set the frame.
+  const frame = (inTown.length ? inTown : trips).map((e) => [e.coords.lat, e.coords.lon]);
+  map.fitBounds(frame, { padding: [30, 30], maxZoom: 15 });
+
+  if (note) {
+    note.hidden = false;
+    note.textContent =
+      `${inTown.length} in town` +
+      (trips.length ? ` · ${trips.length} out of town, outside the frame` : '');
+  }
+  // The map was built inside a hidden section on first paint.
+  setTimeout(() => map.invalidateSize(), 0);
 }
 
 /* -------------------------------------------------------------- places ---- */
@@ -704,6 +1132,25 @@ function bindListeners() {
     });
     const target = match ? document.getElementById('day-' + match.date) : null;
     (target || $('#schedule')).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // Bookmarkable and back-button friendly, which is the point on the ground.
+  window.addEventListener('hashchange', () => step('cityRoute', routeFromHash));
+
+  $('#cityBack').addEventListener('click', (e) => {
+    e.preventDefault();
+    // Replacing rather than pushing keeps Back going where the user came from
+    // instead of bouncing between the city view and the homepage.
+    history.replaceState(null, '', location.pathname + location.search);
+    closeCityView();
+    $('#route').scrollIntoView();
+  });
+
+  $('#cityToExplore').addEventListener('click', () => {
+    const city = state.cityName;
+    history.replaceState(null, '', location.pathname + location.search);
+    closeCityView();
+    if (city) selectCity(city);
   });
 
   const navToggle = $('#navToggle');

@@ -1196,3 +1196,292 @@ footer code {
   font-weight: 700;
   color: var(--accent-on-deep);
 }
+
+/* ---------------------------------------------------------- city view --- */
+
+/* The page at #city/<slug>. While it is open the rest of the page is hidden
+ * rather than scrolled past, because the whole point is to answer one question
+ * ("where am I and what is near me") without anything else in the way.
+ *
+ * Contrast, computed against the backgrounds these sit on rather than judged
+ * by eye (WCAG 2.1 SC 1.4.3, 4.5:1 for normal text):
+ *   --muted #555e57 on --paper ......... 6.12:1
+ *   --muted #555e57 on --card .......... 6.43:1
+ *   --accent-text #b03214 on --paper ... 5.77:1
+ *   --accent-text #b03214 on --card .... 6.07:1
+ * https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html
+ */
+
+body.city-open .hero,
+body.city-open #route,
+body.city-open .stats-section,
+body.city-open #explore,
+body.city-open #schedule {
+  display: none;
+}
+
+.city-section {
+  background: var(--warm);
+}
+
+.city-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+
+.city-back {
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.city-back:hover,
+.city-back:focus {
+  text-decoration: underline;
+}
+
+.city-head h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(34px, 5vw, 54px);
+  line-height: 1;
+  font-weight: 400;
+  margin: 6px 0 8px;
+}
+
+/* The heading takes focus on navigation so a keyboard or screen reader lands
+ * on the new page rather than staying where the last click was. The ring is
+ * :focus-visible only, so the move is announced without drawing a box around
+ * the title every time a mouse user opens a city. */
+.city-head h2:focus {
+  outline: none;
+}
+
+.city-head h2:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 4px;
+}
+
+.city-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.city-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* States the shortfall in words instead of letting an empty map imply there is
+ * nothing to see. Most cities land in the .is-empty case today. */
+.city-coverage {
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border-left: 3px solid var(--line);
+  background: var(--card);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.city-coverage.is-empty {
+  border-left-color: var(--accent);
+}
+
+.city-subhead {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.area {
+  border: 1px solid var(--line);
+  background: var(--card);
+  margin-bottom: 8px;
+}
+
+.area > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 13px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.area > summary::-webkit-details-marker {
+  display: none;
+}
+
+.area > summary:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.area-name {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+/* A closed group is the commonest state, so the marker has to read as
+ * "there is more here" on its own. Text, not colour, carries it. */
+.area > summary::after {
+  content: 'show';
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-left: auto;
+}
+
+.area[open] > summary::after {
+  content: 'hide';
+}
+
+.area-count {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.area-trips > summary,
+.area-singles > summary {
+  background: var(--chip);
+}
+
+.area-places {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 8px;
+}
+
+.area-places > li {
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+
+.single-area > b {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.city-place-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.city-place-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 19px;
+  line-height: 1.15;
+}
+
+.city-place-why {
+  margin: 5px 0 6px;
+  font-size: 13px;
+  color: #43534e;
+}
+
+.city-place-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.city-place-meta a {
+  color: var(--accent-text);
+}
+
+.city-place.is-mine {
+  border-left: 3px solid var(--deep);
+  padding-left: 11px;
+  margin-left: -14px;
+}
+
+/* Says outright that the position is missing, rather than leaving a place
+ * looking mapped when it is not. */
+.no-fix {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.city-map-wrap {
+  position: sticky;
+  top: calc(var(--topbar-h) + 16px);
+  height: 620px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  overflow: hidden;
+}
+
+#cityMap {
+  height: 100%;
+}
+
+#cityMap .empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+}
+
+.place-marker {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 50%;
+  border: 3px solid var(--paper);
+  background: var(--accent);
+  box-shadow: 0 1px 5px rgba(23, 51, 46, 0.5);
+}
+
+/* Square, not just a different colour, so the two marker kinds are told apart
+ * without relying on hue (WCAG 2.1 SC 1.4.1). */
+.trip-marker {
+  width: 12px !important;
+  height: 12px !important;
+  border: 3px solid var(--paper);
+  background: var(--ink);
+  box-shadow: 0 1px 5px rgba(23, 51, 46, 0.5);
+}
+
+.popup-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--accent-text);
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .city-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Below the areas on a narrow screen, and no longer sticky: a pinned map
+   * would eat most of a phone screen while scrolling the list. */
+  .city-map-wrap {
+    position: relative;
+    top: auto;
+    height: 380px;
+    order: 2;
+  }
+
+  .city-areas-col {
+    order: 1;
+  }
+}

@@ -23,7 +23,7 @@
          This also removes a third-party dependency from the critical path and
          lets the service worker cache the map library for offline use. -->
     <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=3" />
+    <link rel="stylesheet" href="styles.css?v=4" />
   </head>
   <body>
     <a class="skip-link" href="#route">Skip to the route</a>
@@ -114,7 +114,7 @@
             <p class="eyebrow">Follow the journey</p>
             <h2 id="routeHeading">Your route, plotted.</h2>
           </div>
-          <p>Select any marker to jump straight to that city's saved places.</p>
+          <p>Select a city to open its page: the areas worth knowing, and its saved places.</p>
         </div>
 
         <div class="map-wrap">
@@ -124,6 +124,37 @@
 
         <div id="routeStrip" class="route-strip" role="group" aria-label="Cities in route order"></div>
         <p class="route-legend" id="routeLegend"></p>
+      </section>
+
+      <!-- The city page, reached at #city/<slug>. Hidden until that hash is
+           set, and it hides the rest of the page while it is open.
+
+           Areas come first and the map second on purpose. Only 75 of the 406
+           places carry a real position and they sit in three cities, so a
+           map-led city page would be blank for the other 24. Nothing here ever
+           plots a city centroid as if it were the place. -->
+      <section id="cityView" class="section city-section" hidden aria-labelledby="cityViewHeading">
+        <div class="city-head">
+          <div>
+            <p class="eyebrow"><a id="cityBack" class="city-back" href="#route">Back to the full plan</a></p>
+            <h2 id="cityViewHeading" tabindex="-1">—</h2>
+            <p class="city-sub" id="citySub"></p>
+          </div>
+          <button id="cityToExplore" class="button ghost" type="button">Show these in Explore</button>
+        </div>
+
+        <div class="city-grid">
+          <div class="city-areas-col">
+            <p class="city-coverage" id="cityCoverage"></p>
+            <div id="cityAreas"></div>
+            <div id="cityDayTrips"></div>
+          </div>
+
+          <div class="city-map-wrap" id="cityMapWrap">
+            <div id="cityMap" role="region" aria-label="Map of places in this city"></div>
+            <p class="map-note" id="cityMapNote" hidden></p>
+          </div>
+        </div>
       </section>
 
       <section class="section stats-section" aria-labelledby="statsHeading">
@@ -235,6 +266,6 @@
     </footer>
 
     <script src="vendor/leaflet/leaflet.js"></script>
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>
