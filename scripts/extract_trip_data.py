@@ -31,40 +31,22 @@ import re
 import sys
 from pathlib import Path
 
+from coords import derive_coords, load_city_reference
+
 # ---------------------------------------------------------------------------
 # Reference data. Not present in the master file, so it lives here.
 # Coordinates spot-checked against public gazetteer values.
 # ---------------------------------------------------------------------------
 
+# CITIES was a hardcoded table here. It is now read from
+# scripts/city_reference.json, which is also what add_place.py resolves user
+# input against. Two hand-maintained copies of the same 28 centroids drift
+# apart the moment one is edited; this makes the JSON file the only copy.
+# The values are unchanged: the reference file was seeded from this table.
+CITY_REFERENCE = load_city_reference()
 CITIES = {
-    "Gdańsk":          {"country": "Poland",      "lat": 54.3520, "lon": 18.6466},
-    "Kraków":          {"country": "Poland",      "lat": 50.0647, "lon": 19.9450},
-    "Munich":          {"country": "Germany",     "lat": 48.1351, "lon": 11.5820},
-    "Cologne":         {"country": "Germany",     "lat": 50.9375, "lon":  6.9603},
-    "Luxembourg City": {"country": "Luxembourg",  "lat": 49.6116, "lon":  6.1319},
-    "Ghent":           {"country": "Belgium",     "lat": 51.0543, "lon":  3.7174},
-    "Amsterdam":       {"country": "Netherlands", "lat": 52.3676, "lon":  4.9041},
-    "Palma":           {"country": "Spain",       "lat": 39.5696, "lon":  2.6502},
-    "Madrid":          {"country": "Spain",       "lat": 40.4168, "lon": -3.7038},
-    "Córdoba":         {"country": "Spain",       "lat": 37.8882, "lon": -4.7794},
-    "Sevilla":         {"country": "Spain",       "lat": 37.3891, "lon": -5.9845},
-    "Ronda":           {"country": "Spain",       "lat": 36.7429, "lon": -5.1662},
-    "Setenil":         {"country": "Spain",       "lat": 36.8639, "lon": -5.1806},
-    "Granada":         {"country": "Spain",       "lat": 37.1773, "lon": -3.5986},
-    "València":        {"country": "Spain",       "lat": 39.4699, "lon": -0.3763},
-    "Peñíscola":       {"country": "Spain",       "lat": 40.3579, "lon":  0.4069},
-    "Barcelona":       {"country": "Spain",       "lat": 41.3874, "lon":  2.1686},
-    "Venice":          {"country": "Italy",       "lat": 45.4408, "lon": 12.3155},
-    "Vienna":          {"country": "Austria",     "lat": 48.2082, "lon": 16.3738},
-    "Bratislava":      {"country": "Slovakia",    "lat": 48.1486, "lon": 17.1077},
-    "Budapest":        {"country": "Hungary",     "lat": 47.4979, "lon": 19.0402},
-    "Prague":          {"country": "Czechia",     "lat": 50.0755, "lon": 14.4378},
-    "Copenhagen":      {"country": "Denmark",     "lat": 55.6761, "lon": 12.5683},
-    "Tallinn":         {"country": "Estonia",     "lat": 59.4370, "lon": 24.7536},
-    "Riga":            {"country": "Latvia",      "lat": 56.9496, "lon": 24.1052},
-    "Vilnius":         {"country": "Lithuania",   "lat": 54.6872, "lon": 25.2797},
-    "Frankfurt":       {"country": "Germany",     "lat": 50.1109, "lon":  8.6821},
-    "Dortmund":        {"country": "Germany",     "lat": 51.5136, "lon":  7.4653},
+    name: {"country": row["country"], "lat": row["lat"], "lon": row["lon"]}
+    for name, row in CITY_REFERENCE.items()
 }
 
 # Day stops: places passed through without sleeping there. Taken from the
@@ -197,6 +179,16 @@ def parse_places(lines):
             continue
         rec["timeBucket"] = time_bucket(rec["best time"])
         rec["costTier"] = cost_tier(rec["approx cost"])
+        # Derived, additive, never replacing a tracker column. Coordinates are
+        # read only from text the master file already holds: an explicit pair
+        # in the address column, or a maps link that carries one. Nothing is
+        # geocoded or guessed; a place with neither falls back to its city
+        # centroid and is flagged approx so the app can say so.
+        lat, lon, source, precision = derive_coords(rec, CITIES.get(rec["city"]))
+        rec["lat"] = lat
+        rec["lon"] = lon
+        rec["coordSource"] = source
+        rec["coordPrecision"] = precision
         places.append(rec)
     return places
 
@@ -396,11 +388,21 @@ def main():
             "countriesSleptIn": len(slept_in),
             "heavyDays": sum(1 for r in itinerary if r["heavy"]),
         },
+        # Kept as an object keyed by canonical name, not converted to an
+        # array: nothing reads it positionally, and a name-keyed lookup is what
+        # both the app and the validator want. slug and tz are new. tz matters
+        # because the trip crosses 15 countries and runs through the end of EU
+        # summer time on 25 October 2026, so a single UTC offset would be wrong
+        # for the back half of it. placeCount counts TRACKER places only;
+        # personal places are counted separately and never touch this file.
         "cities": {
             c: {
                 "country": CITIES[c]["country"],
                 "lat": CITIES[c]["lat"],
                 "lon": CITIES[c]["lon"],
+                "slug": CITY_REFERENCE[c]["slug"],
+                "tz": CITY_REFERENCE[c]["tz"],
+                "placeCount": sum(1 for p in places if p["city"] == c),
             }
             for c in sorted(set(cities_used) | {r["baseCity"] for r in itinerary if r["baseCity"]}
                             | {"Dortmund"})
@@ -421,6 +423,17 @@ def main():
     print(f"  days     {m['days']} ({m['heavyDays']} heavy), {m['nights']} nights")
     print(f"  route    {len(route)} legs")
     print(f"  countries {m['countriesVisited']} visited, {m['countriesSleptIn']} slept in")
+
+    exact = sum(1 for p in places if p["coordPrecision"] == "exact")
+    by_source = {}
+    for p in places:
+        by_source[p["coordSource"]] = by_source.get(p["coordSource"], 0) + 1
+    pct = 100.0 * exact / len(places) if places else 0.0
+    print(f"  coords   {exact}/{len(places)} exact ({pct:.1f}%), "
+          + ", ".join(f"{k} {v}" for k, v in sorted(by_source.items())))
+    if pct < 100.0:
+        print(f"           the remaining {len(places) - exact} fall back to a city "
+              f"centroid and are shown as approximate")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "_comment": [
+    "Hand-maintained. Written by scripts/add_place.py, never by",
+    "scripts/extract_trip_data.py. This file is the ONLY place personal",
+    "additions may live.",
+    "Do not put personal places in data/trip-data.json: that file is",
+    "regenerated wholesale from the master file on every content refresh, so a",
+    "row added there survives until the next refresh and then disappears with",
+    "no error.",
+    "Rows carry the same 14 tracker columns as a master-file row, so any entry",
+    "here can later be pasted into Part 8 of the master file verbatim.",
+    "Personal places are counted separately from the 406 and never mutate meta,",
+    "route, itinerary or the heavy-day counts."
+  ],
+  "places": []
+}

@@ -25,6 +25,8 @@ import json
 import sys
 from pathlib import Path
 
+import coords
+
 TRACKER_COLUMNS = [
     "city", "neighbourhood", "name", "type", "why it made the list",
     "source and date", "confidence", "address or coordinates", "maps link",
@@ -32,6 +34,15 @@ TRACKER_COLUMNS = [
 ]
 
 VALID_PRIORITIES = {"Must", "Nice", "If nearby"}
+VALID_COORD_SOURCES = set(coords.COORD_SOURCES)
+VALID_COORD_PRECISION = set(coords.COORD_PRECISION)
+
+# Distance bounds for the centroid check. Measured maxima in the 4 September
+# 2026 data were 3.8 km for a non-day-trip and 57.4 km for a day trip
+# (Rotterdam, filed under Amsterdam), so both bounds have real headroom while
+# still being orders of magnitude below what a coordinate parsing bug produces.
+PLACE_MAX_KM = 12
+DAY_TRIP_MAX_KM = 150
 
 
 def main() -> int:
@@ -80,6 +91,11 @@ def main() -> int:
         errors.append(
             f"meta.cities={meta.get('cities')} but places span {len(distinct_cities)}"
         )
+
+    # Data generated before M2 has no coordinate fields at all. That is not an
+    # error, it is an older file, so the coordinate block is skipped rather
+    # than failing 406 times.
+    coords_available = any("coordSource" in p for p in places)
 
     heavy = sum(1 for r in itinerary if r.get("heavy"))
     if meta.get("heavyDays") != heavy:
@@ -145,6 +161,78 @@ def main() -> int:
         if not isinstance(c.get("lat"), (int, float)) or not isinstance(c.get("lon"), (int, float)):
             errors.append(f"city '{name}' has non-numeric coordinates")
 
+    # --- coordinates -------------------------------------------------------
+    # Added by M2. These are the checks that catch the three ways coordinate
+    # parsing fails quietly: latitude and longitude swapped, a decimal point in
+    # the wrong place, and a wrong hemisphere sign. All three throw a place
+    # hundreds or thousands of kilometres from its city, so a distance bound
+    # catches them without needing to know the right answer.
+    #
+    # Section 13.5 of the handoff proposed a hand-curated allowlist of
+    # legitimate day trips, seeded from the 20 largest distances. The M0 audit
+    # made that unnecessary: every place further than 5 km from its centroid is
+    # already type "day trip" in the tracker, including Auschwitz-Birkenau,
+    # Westerplatte, Malbork Castle, Rotterdam and Zaanse Schans. A rule keyed
+    # on the type column needs no maintenance, so there is no allowlist here.
+    #
+    # Bounds are set well above the measured maxima (3.8 km for a non-day-trip,
+    # 57.4 km for a day trip) to leave room for genuine additions, while
+    # staying far below the error distances a parsing bug produces.
+    if coords_available:
+        for i, p in enumerate(places):
+            name = p.get("name", "?")
+            src = p.get("coordSource")
+            if src is not None and src not in VALID_COORD_SOURCES:
+                errors.append(
+                    f"place '{name}' has coordSource {src!r}, expected one of "
+                    f"{sorted(VALID_COORD_SOURCES)}"
+                )
+
+            prec = p.get("coordPrecision")
+            if prec is not None and prec not in VALID_COORD_PRECISION:
+                errors.append(
+                    f"place '{name}' has coordPrecision {prec!r}, expected one "
+                    f"of {sorted(VALID_COORD_PRECISION)}"
+                )
+
+            # A city centroid is an inferred position and must never be
+            # published as an exact one: the app decides whether to show the
+            # "approximate location" note off the back of this field.
+            if src == "cityCentroid" and prec == "exact":
+                errors.append(
+                    f"place '{name}' claims coordPrecision 'exact' with "
+                    f"coordSource 'cityCentroid'; a centroid is approximate"
+                )
+
+            lat, lon = p.get("lat"), p.get("lon")
+            if (lat is None) != (lon is None):
+                errors.append(f"place '{name}' has one of lat/lon but not the other")
+                continue
+            if lat is None:
+                if src not in (None, "none"):
+                    errors.append(
+                        f"place '{name}' has no coordinates but coordSource {src!r}"
+                    )
+                continue
+            if not coords.in_range(lat, lon):
+                errors.append(
+                    f"place '{name}' has out-of-range coordinates: {lat}, {lon}"
+                )
+                continue
+
+            centroid = cities.get(p.get("city"))
+            if not centroid or not coords.in_range(centroid.get("lat"), centroid.get("lon")):
+                continue
+            km = coords.haversine_km(lat, lon, centroid["lat"], centroid["lon"])
+            limit = DAY_TRIP_MAX_KM if p.get("type") == "day trip" else PLACE_MAX_KM
+            if km > limit:
+                errors.append(
+                    f"place '{name}' ({p.get('type')}) sits {km:.0f} km from the "
+                    f"{p.get('city')} centroid, over the {limit} km limit. "
+                    f"Check for swapped lat/lon, a misplaced decimal point, or "
+                    f"a wrong hemisphere sign."
+                )
+
     # --- the branch that used to get silently dropped ----------------------
     branch_rows = [r for r in itinerary if r.get("kind") == "branch"]
     if not branch_rows:
@@ -179,6 +267,13 @@ def main() -> int:
     print(f"  {meta['places']} places ({meta['musts']} Must) across {meta['cities']} cities")
     print(f"  {meta['days']} days ({meta['heavyDays']} heavy), {len(route)} route legs")
     print(f"  all {TRACKER_COLUMNS.__len__()} tracker columns present on every place")
+    if coords_available:
+        exact = sum(1 for p in places if p.get("coordPrecision") == "exact")
+        print(f"  {exact}/{len(places)} places have exact coordinates "
+              f"({100.0 * exact / len(places):.1f}%); the rest fall back to a "
+              f"city centroid")
+    else:
+        print("  no coordinate fields in this file (pre-M2 data)")
     return 0
 
 

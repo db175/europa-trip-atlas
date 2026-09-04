@@ -10,15 +10,15 @@
  * or self-hosted tiles), you can add the tile host here.
  */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `europa-shell-${VERSION}`;
 const DATA = `europa-data-${VERSION}`;
 
 const SHELL_FILES = [
   './',
   './index.html',
-  './styles.css?v=2',
-  './app.js?v=2',
+  './styles.css?v=3',
+  './app.js?v=3',
   './favicon.svg',
   './manifest.webmanifest',
   './404.html',
@@ -54,9 +54,18 @@ self.addEventListener('fetch', (event) => {
   // Never touch map tiles or any other cross-origin request.
   if (url.origin !== self.location.origin) return;
 
-  // Trip data: network first, so a fresh publish is picked up immediately,
+  // Data files: network first, so a fresh publish is picked up immediately,
   // falling back to the last good copy when offline.
-  if (url.pathname.endsWith('trip-data.json')) {
+  //
+  // my-places.json is handled here rather than precached in SHELL_FILES on
+  // purpose. It is optional and may not exist yet, and cache.addAll() rejects
+  // as a whole if any one entry 404s, which would fail the install and leave
+  // the site with no service worker at all. Fetching it here caches it on the
+  // first successful load, which is exactly how trip-data.json is treated.
+  if (
+    url.pathname.endsWith('trip-data.json') ||
+    url.pathname.endsWith('my-places.json')
+  ) {
     event.respondWith(
       fetch(request)
         .then((res) => {

@@ -53,17 +53,32 @@ const SEARCH_FIELDS = [
   'why it made the list', 'notes', 'address or coordinates',
 ];
 
+// data/my-places.json is hand-maintained and may legitimately not exist. If
+// the request stalls rather than 404s, the page must still render, so the load
+// is raced against this deadline and then given up on.
+const PERSONAL_TIMEOUT_MS = 4000;
+
 const state = {
   meta: {},
   cities: {},
   route: [],
+  // The 406 tracker places, exactly as generated. Never has personal places
+  // mixed in: renderStats and drawVisuals describe the tracker data, and the
+  // hero count must stay at meta.places. Issue 4 of the original audit was the
+  // hero being overwritten with a different number at runtime.
   places: [],
+  // Personal additions from data/my-places.json. Counted separately.
+  personal: [],
   itinerary: [],
   visibleCount: PAGE_SIZE,
   heavyOnly: false,
   map: null,
   markers: {},
 };
+
+// The working list for search, filters and the place grid. Tracker places
+// first, so the default ordering is unchanged when there are no personal ones.
+const allPlaces = () => state.places.concat(state.personal);
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) =>
@@ -74,7 +89,7 @@ const unique = (arr) => [...new Set(arr.filter(Boolean))];
 
 /* ---------------------------------------------------------------- boot ---- */
 
-fetch('data/trip-data.json?v=2')
+fetch('data/trip-data.json?v=3')
   .then((r) => {
     if (!r.ok) throw new Error(`Data request failed (HTTP ${r.status})`);
     return r.json();
@@ -87,6 +102,10 @@ fetch('data/trip-data.json?v=2')
       places: data.places || [],
       itinerary: data.itinerary || [],
     });
+    return loadPersonalPlaces();
+  })
+  .then((personal) => {
+    state.personal = personal;
     init();
   })
   .catch((err) => {
@@ -95,6 +114,48 @@ fetch('data/trip-data.json?v=2')
     console.error('Trip data could not be loaded:', err);
     showFatal(err);
   });
+
+/* Personal places. A missing file, a malformed file, a wrong version or a
+ * stalled request all yield an empty list and ONE console warning. None of
+ * them may break the page: the file is optional by design, and the 406
+ * tracker places must render whether or not it exists. */
+function loadPersonalPlaces() {
+  const request = fetch('data/my-places.json?v=3')
+    .then((r) => {
+      // 404 is the normal state before the first personal place is added, but
+      // it is still reported once, so a file that fails to publish is visible
+      // rather than looking like "no personal places yet".
+      if (r.status === 404) {
+        throw new Error('data/my-places.json is not published (HTTP 404)');
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then((doc) => {
+      if (doc.version !== 1) {
+        throw new Error(`unexpected version ${JSON.stringify(doc.version)}`);
+      }
+      if (!Array.isArray(doc.places)) throw new Error('"places" is not an array');
+      return doc.places
+        .filter((p) => p && typeof p === 'object' && p.name)
+        // origin is forced here rather than trusted from the file, so a row
+        // can never render without its MY PICK marking.
+        .map((p) => Object.assign({}, p, { origin: 'personal' }));
+    })
+    .catch((err) => {
+      console.warn(
+        'Personal places could not be loaded; continuing with tracker places only:',
+        err
+      );
+      return [];
+    });
+
+  const deadline = new Promise((resolve) => {
+    setTimeout(() => resolve(null), PERSONAL_TIMEOUT_MS);
+  });
+
+  return Promise.race([request, deadline]).then((rows) => rows || []);
+}
 
 function showFatal(err) {
   const main = $('main');
@@ -139,6 +200,21 @@ function renderStats() {
     m.musts ?? state.places.filter((p) => p.priority === 'Must').length;
   $('#statGrid').setAttribute('aria-busy', 'false');
 
+  // Personal places are reported alongside the tracker total, never added to
+  // it. meta is not mutated: the four figures above stay 406 / 27 / 76 / 149
+  // whatever is in data/my-places.json.
+  const note = $('#personalNote');
+  if (note) {
+    const n = state.personal.length;
+    if (n) {
+      note.textContent = `Plus ${n} personal pick${n === 1 ? '' : 's'} you added.`;
+      note.hidden = false;
+    } else {
+      note.textContent = '';
+      note.hidden = true;
+    }
+  }
+
   if (m.generatedAt) {
     $('#dataStamp').textContent = `Data generated ${m.generatedAt.replace('T', ' ').replace('+00:00', ' UTC')}.`;
   }
@@ -179,11 +255,15 @@ function renderNextStop() {
 /* ------------------------------------------------------------- filters ---- */
 
 function fillFilters() {
-  fillSelect('cityFilter', unique(state.places.map((p) => p.city)).sort());
-  fillSelect('typeFilter', unique(state.places.map((p) => p.type)).sort());
+  // Built from the merged list, so a personal place with a type or city that
+  // no tracker place uses is still reachable from the filters.
+  const all = allPlaces();
+  fillSelect('cityFilter', unique(all.map((p) => p.city)).sort());
+  fillSelect('typeFilter', unique(all.map((p) => p.type)).sort());
   fillSelect('priorityFilter', ['Must', 'Nice', 'If nearby']);
-  fillSelect('timeFilter', unique(state.places.map((p) => p.timeBucket)).sort());
-  fillSelect('costFilter', unique(state.places.map((p) => p.costTier)).sort());
+  fillSelect('timeFilter', unique(all.map((p) => p.timeBucket)).sort());
+  fillSelect('costFilter', unique(all.map((p) => p.costTier)).sort());
+  // The schedule is tracker-only: personal places never enter the itinerary.
   fillSelect('scheduleCity', unique(state.itinerary.map((r) => r.baseCity)));
 }
 
@@ -294,6 +374,7 @@ function initMap() {
   const seen = new Set();
   legs.forEach((leg) => {
     const count = state.places.filter((p) => p.city === leg.city).length;
+    const mine = state.personal.filter((p) => p.city === leg.city).length;
     const nights = state.route
       .filter((r) => r.city === leg.city)
       .reduce((sum, r) => sum + r.nights, 0);
@@ -306,7 +387,8 @@ function initMap() {
       .bindPopup(
         `<strong>${esc(leg.city)}</strong><br>${nights} night${nights === 1 ? '' : 's'}` +
           (visits > 1 ? ` across ${visits} stays` : '') +
-          `<br>${count || 'No'} saved place${count === 1 ? '' : 's'}`
+          `<br>${count || 'No'} saved place${count === 1 ? '' : 's'}` +
+          (mine ? ` <br>★ ${mine} of your own` : '')
       );
     marker.on('click', () => selectCity(leg.city));
     if (!seen.has(leg.city)) {
@@ -403,12 +485,18 @@ function filteredPlaces() {
   const time = $('#timeFilter').value;
   const cost = $('#costFilter').value;
   const sort = $('#sortSelect').value;
+  const originEl = $('#originFilter');
+  const origin = originEl ? originEl.value : 'all';
 
-  const result = state.places.filter((p) => {
+  const result = allPlaces().filter((p) => {
     if (q) {
+      // SEARCH_FIELDS still excludes the maps link, which is what made "com"
+      // and "https" match every row in the original build.
       const hay = SEARCH_FIELDS.map((f) => p[f] || '').join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    if (origin === 'personal' && p.origin !== 'personal') return false;
+    if (origin === 'tracker' && p.origin === 'personal') return false;
     if (city !== 'all' && p.city !== city) return false;
     if (type !== 'all' && p.type !== type) return false;
     if (priority !== 'all' && p.priority !== priority) return false;
@@ -452,13 +540,25 @@ function placeCard(p) {
 
   // Fields the old build dropped entirely: opening hours, notes, confidence,
   // source and date, address. They are the ones that answer "is it open".
+  const mine = p.origin === 'personal';
+
   const meta = [];
   if (hours) meta.push(`<span class="meta-hours"><b>Hours</b> ${esc(hours)}</span>`);
   if (p.notes) meta.push(`<span class="meta-note"><b>Note</b> ${esc(p.notes)}</span>`);
+  // Never present an inferred position as an exact one.
+  if (mine && p.coordPrecision === 'approx') {
+    meta.push(
+      '<span class="meta-approx"><b>Location</b> approximate, city centre ' +
+      'until a map link or coordinates are added</span>'
+    );
+  }
 
   return (
-    '<article class="place-card">' +
-    `<div class="place-top"><span class="tag">${esc(p.type)}</span>` +
+    `<article class="place-card${mine ? ' is-mine' : ''}">` +
+    '<div class="place-top"><span class="tag">' +
+    // Glyph plus colour, not colour alone, matching the HEAVY DAY treatment.
+    (mine ? '<span class="mine-chip">★ MY PICK</span> ' : '') +
+    `${esc(p.type)}</span>` +
     `<span class="priority ${priority === 'Must' ? 'must' : ''}">${esc(priority)}</span></div>` +
     `<h3>${esc(p.name)}</h3>` +
     `<p class="place-city">${esc(p.city)} · ${esc(p.neighbourhood || 'City centre')}</p>` +
@@ -543,19 +643,25 @@ function kindLabel(kind) {
 function bindListeners() {
   const filterIds = [
     'searchInput', 'cityFilter', 'typeFilter',
-    'priorityFilter', 'timeFilter', 'costFilter', 'sortSelect',
+    'priorityFilter', 'timeFilter', 'costFilter', 'originFilter', 'sortSelect',
   ];
   filterIds.forEach((id) => {
-    $('#' + id).addEventListener('input', () => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.addEventListener('input', () => {
       state.visibleCount = PAGE_SIZE;
       renderPlaces();
     });
   });
 
   $('#clearFilters').addEventListener('click', () => {
-    ['cityFilter', 'typeFilter', 'priorityFilter', 'timeFilter', 'costFilter'].forEach(
-      (id) => ($('#' + id).value = 'all')
-    );
+    [
+      'cityFilter', 'typeFilter', 'priorityFilter',
+      'timeFilter', 'costFilter', 'originFilter',
+    ].forEach((id) => {
+      const el = $('#' + id);
+      if (el) el.value = 'all';
+    });
     $('#searchInput').value = '';
     $('#sortSelect').value = 'priority';
     // The old reset left the route strip highlighted and never touched the

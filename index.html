@@ -23,7 +23,7 @@
          This also removes a third-party dependency from the critical path and
          lets the service worker cache the map library for offline use. -->
     <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
   <body>
     <a class="skip-link" href="#route">Skip to the route</a>
@@ -91,6 +91,11 @@
             <div><strong id="dayCount">—</strong><span>days mapped</span></div>
             <div><strong id="mustCount">—</strong><span>must-dos</span></div>
           </div>
+
+          <!-- Personal places are reported here as a separate figure. They are
+               never added into the four numbers above, which stay at the
+               tracker totals 406 / 27 / 76 / 149. -->
+          <p class="personal-note" id="personalNote" hidden></p>
 
           <div class="next-stop">
             <span class="pulse" aria-hidden="true"></span>
@@ -167,6 +172,13 @@
           <label><span class="label-text">Priority</span><select id="priorityFilter"><option value="all">Any priority</option></select></label>
           <label><span class="label-text">Best time</span><select id="timeFilter"><option value="all">Any time</option></select></label>
           <label><span class="label-text">Cost</span><select id="costFilter"><option value="all">Any cost</option></select></label>
+          <label><span class="label-text">Source</span>
+            <select id="originFilter">
+              <option value="all">All places</option>
+              <option value="tracker">From the tracker</option>
+              <option value="personal">★ My picks only</option>
+            </select>
+          </label>
           <label><span class="label-text">Sort</span>
             <select id="sortSelect">
               <option value="priority">Priority first</option>
@@ -223,6 +235,6 @@
     </footer>
 
     <script src="vendor/leaflet/leaflet.js"></script>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>

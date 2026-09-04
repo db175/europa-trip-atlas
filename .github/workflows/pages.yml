@@ -43,6 +43,13 @@ jobs:
       - name: Validate published data
         run: python3 scripts/validate_trip_data.py data/trip-data.json
 
+      # data/my-places.json is hand-maintained, so unlike trip-data.json it can
+      # be edited without a script. This is the check that stops a malformed
+      # personal file reaching Pages. It passes when the file is absent, which
+      # is the normal state before the first place is added.
+      - name: Validate personal places
+        run: python3 scripts/validate_my_places.py data/my-places.json
+
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:

@@ -1,0 +1,352 @@
+{
+  "version": 1,
+  "_comment": [
+    "Hand-maintained INPUT. Not generated, not written by any script.",
+    "Seeded on 2026-09-04 from the cities object in data/trip-data.json,",
+    "which is itself produced by scripts/extract_trip_data.py from the",
+    "master file. lat/lon are that file's city centroids, carried over",
+    "unchanged; if a centroid is wrong, fix it in the master file and",
+    "re-run the extractor, then update the value here to match.",
+    "tz values are IANA zone identifiers, each checked to exist in the",
+    "system tz database and to shift by one hour across 25 October 2026,",
+    "the end of EU summer time under Directive 2000/84/EC.",
+    "aliases are ASCII and exonym spellings for diacritic-insensitive",
+    "lookup. The canonical name always matches too and is not repeated.",
+    "Dortmund is included with placeCount 0: it is the 9 December branch A",
+    "city, has no tracker places, and is not one of the 27 counted cities.",
+    "placeCount reflects tracker places only and excludes personal ones."
+  ],
+  "cities": [
+    {
+      "name": "Amsterdam",
+      "slug": "amsterdam",
+      "aliases": [],
+      "country": "Netherlands",
+      "lat": 52.3676,
+      "lon": 4.9041,
+      "tz": "Europe/Amsterdam",
+      "placeCount": 31
+    },
+    {
+      "name": "Barcelona",
+      "slug": "barcelona",
+      "aliases": [],
+      "country": "Spain",
+      "lat": 41.3874,
+      "lon": 2.1686,
+      "tz": "Europe/Madrid",
+      "placeCount": 13
+    },
+    {
+      "name": "Bratislava",
+      "slug": "bratislava",
+      "aliases": [],
+      "country": "Slovakia",
+      "lat": 48.1486,
+      "lon": 17.1077,
+      "tz": "Europe/Bratislava",
+      "placeCount": 6
+    },
+    {
+      "name": "Budapest",
+      "slug": "budapest",
+      "aliases": [],
+      "country": "Hungary",
+      "lat": 47.4979,
+      "lon": 19.0402,
+      "tz": "Europe/Budapest",
+      "placeCount": 12
+    },
+    {
+      "name": "Cologne",
+      "slug": "cologne",
+      "aliases": [
+        "Koeln",
+        "Koln",
+        "Köln"
+      ],
+      "country": "Germany",
+      "lat": 50.9375,
+      "lon": 6.9603,
+      "tz": "Europe/Berlin",
+      "placeCount": 27
+    },
+    {
+      "name": "Copenhagen",
+      "slug": "copenhagen",
+      "aliases": [
+        "Kobenhavn",
+        "Koebenhavn",
+        "København"
+      ],
+      "country": "Denmark",
+      "lat": 55.6761,
+      "lon": 12.5683,
+      "tz": "Europe/Copenhagen",
+      "placeCount": 24
+    },
+    {
+      "name": "Córdoba",
+      "slug": "cordoba",
+      "aliases": [
+        "Cordoba",
+        "Cordova"
+      ],
+      "country": "Spain",
+      "lat": 37.8882,
+      "lon": -4.7794,
+      "tz": "Europe/Madrid",
+      "placeCount": 3
+    },
+    {
+      "name": "Dortmund",
+      "slug": "dortmund",
+      "aliases": [],
+      "country": "Germany",
+      "lat": 51.5136,
+      "lon": 7.4653,
+      "tz": "Europe/Berlin",
+      "placeCount": 0
+    },
+    {
+      "name": "Frankfurt",
+      "slug": "frankfurt",
+      "aliases": [
+        "Frankfurt am Main",
+        "Frankfurt/Main"
+      ],
+      "country": "Germany",
+      "lat": 50.1109,
+      "lon": 8.6821,
+      "tz": "Europe/Berlin",
+      "placeCount": 3
+    },
+    {
+      "name": "Gdańsk",
+      "slug": "gdansk",
+      "aliases": [
+        "Gdansk"
+      ],
+      "country": "Poland",
+      "lat": 54.352,
+      "lon": 18.6466,
+      "tz": "Europe/Warsaw",
+      "placeCount": 23
+    },
+    {
+      "name": "Ghent",
+      "slug": "ghent",
+      "aliases": [
+        "Gand",
+        "Gent"
+      ],
+      "country": "Belgium",
+      "lat": 51.0543,
+      "lon": 3.7174,
+      "tz": "Europe/Brussels",
+      "placeCount": 27
+    },
+    {
+      "name": "Granada",
+      "slug": "granada",
+      "aliases": [],
+      "country": "Spain",
+      "lat": 37.1773,
+      "lon": -3.5986,
+      "tz": "Europe/Madrid",
+      "placeCount": 12
+    },
+    {
+      "name": "Kraków",
+      "slug": "krakow",
+      "aliases": [
+        "Cracow",
+        "Krakow"
+      ],
+      "country": "Poland",
+      "lat": 50.0647,
+      "lon": 19.945,
+      "tz": "Europe/Warsaw",
+      "placeCount": 24
+    },
+    {
+      "name": "Luxembourg City",
+      "slug": "luxembourg-city",
+      "aliases": [
+        "Letzebuerg",
+        "Luxembourg",
+        "Luxembourg-Ville"
+      ],
+      "country": "Luxembourg",
+      "lat": 49.6116,
+      "lon": 6.1319,
+      "tz": "Europe/Luxembourg",
+      "placeCount": 19
+    },
+    {
+      "name": "Madrid",
+      "slug": "madrid",
+      "aliases": [],
+      "country": "Spain",
+      "lat": 40.4168,
+      "lon": -3.7038,
+      "tz": "Europe/Madrid",
+      "placeCount": 15
+    },
+    {
+      "name": "Munich",
+      "slug": "munich",
+      "aliases": [
+        "Muenchen",
+        "Munchen",
+        "München"
+      ],
+      "country": "Germany",
+      "lat": 48.1351,
+      "lon": 11.582,
+      "tz": "Europe/Berlin",
+      "placeCount": 28
+    },
+    {
+      "name": "Palma",
+      "slug": "palma",
+      "aliases": [
+        "Palma de Majorca",
+        "Palma de Mallorca"
+      ],
+      "country": "Spain",
+      "lat": 39.5696,
+      "lon": 2.6502,
+      "tz": "Europe/Madrid",
+      "placeCount": 8
+    },
+    {
+      "name": "Peñíscola",
+      "slug": "peniscola",
+      "aliases": [
+        "Peniscola"
+      ],
+      "country": "Spain",
+      "lat": 40.3579,
+      "lon": 0.4069,
+      "tz": "Europe/Madrid",
+      "placeCount": 3
+    },
+    {
+      "name": "Prague",
+      "slug": "prague",
+      "aliases": [
+        "Praha"
+      ],
+      "country": "Czechia",
+      "lat": 50.0755,
+      "lon": 14.4378,
+      "tz": "Europe/Prague",
+      "placeCount": 13
+    },
+    {
+      "name": "Riga",
+      "slug": "riga",
+      "aliases": [
+        "Rīga"
+      ],
+      "country": "Latvia",
+      "lat": 56.9496,
+      "lon": 24.1052,
+      "tz": "Europe/Riga",
+      "placeCount": 21
+    },
+    {
+      "name": "Ronda",
+      "slug": "ronda",
+      "aliases": [],
+      "country": "Spain",
+      "lat": 36.7429,
+      "lon": -5.1662,
+      "tz": "Europe/Madrid",
+      "placeCount": 8
+    },
+    {
+      "name": "Setenil",
+      "slug": "setenil",
+      "aliases": [
+        "Setenil de las Bodegas"
+      ],
+      "country": "Spain",
+      "lat": 36.8639,
+      "lon": -5.1806,
+      "tz": "Europe/Madrid",
+      "placeCount": 3
+    },
+    {
+      "name": "Sevilla",
+      "slug": "sevilla",
+      "aliases": [
+        "Seville"
+      ],
+      "country": "Spain",
+      "lat": 37.3891,
+      "lon": -5.9845,
+      "tz": "Europe/Madrid",
+      "placeCount": 14
+    },
+    {
+      "name": "Tallinn",
+      "slug": "tallinn",
+      "aliases": [],
+      "country": "Estonia",
+      "lat": 59.437,
+      "lon": 24.7536,
+      "tz": "Europe/Tallinn",
+      "placeCount": 20
+    },
+    {
+      "name": "València",
+      "slug": "valencia",
+      "aliases": [
+        "Valencia"
+      ],
+      "country": "Spain",
+      "lat": 39.4699,
+      "lon": -0.3763,
+      "tz": "Europe/Madrid",
+      "placeCount": 10
+    },
+    {
+      "name": "Venice",
+      "slug": "venice",
+      "aliases": [
+        "Venezia"
+      ],
+      "country": "Italy",
+      "lat": 45.4408,
+      "lon": 12.3155,
+      "tz": "Europe/Rome",
+      "placeCount": 10
+    },
+    {
+      "name": "Vienna",
+      "slug": "vienna",
+      "aliases": [
+        "Wien"
+      ],
+      "country": "Austria",
+      "lat": 48.2082,
+      "lon": 16.3738,
+      "tz": "Europe/Vienna",
+      "placeCount": 13
+    },
+    {
+      "name": "Vilnius",
+      "slug": "vilnius",
+      "aliases": [
+        "Wilno"
+      ],
+      "country": "Lithuania",
+      "lat": 54.6872,
+      "lon": 25.2797,
+      "tz": "Europe/Vilnius",
+      "placeCount": 16
+    }
+  ]
+}

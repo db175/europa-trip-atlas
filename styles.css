@@ -1151,3 +1151,48 @@ footer code {
     break-inside: avoid;
   }
 }
+
+/* --------------------------------------------------------- personal picks --
+ * Places added by hand via scripts/add_place.py, loaded from
+ * data/my-places.json. Marked with a star glyph as well as colour, so the
+ * distinction does not rely on colour alone, matching the HEAVY DAY marker.
+ *
+ * Contrast, computed rather than eyeballed:
+ *   --lime on --deep .................. 10.24:1  (AA needs 4.5:1)
+ * The chip carries its own dark background, so the four page backgrounds do
+ * not affect its text contrast. Its edge against them is non-text (SC 1.4.11,
+ * 3:1) and clears easily: deep on paper 14.51, on warm 13.07, on card 15.26,
+ * on chip 12.68.
+ * https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html
+ */
+
+.mine-chip {
+  display: inline-block;
+  background: var(--deep);
+  color: var(--lime);
+  border-radius: 20px;
+  padding: 3px 7px;
+  margin-right: 4px;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.place-card.is-mine {
+  border-color: var(--deep);
+}
+
+.place-meta .meta-approx {
+  color: var(--muted);
+}
+
+/* Sits under the hero stat grid. Reports personal places as a figure separate
+ * from the tracker totals; it never changes them. */
+.personal-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-on-deep);
+}
