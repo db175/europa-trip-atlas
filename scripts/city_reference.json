@@ -1,0 +1,254 @@
+[
+  {
+    "name": "Gdańsk",
+    "slug": "gdansk",
+    "country": "Poland",
+    "lat": 54.352,
+    "lon": 18.6466,
+    "tz": "Europe/Warsaw",
+    "aliases": ["Gdansk", "Danzig"]
+  },
+  {
+    "name": "Kraków",
+    "slug": "krakow",
+    "country": "Poland",
+    "lat": 50.0647,
+    "lon": 19.945,
+    "tz": "Europe/Warsaw",
+    "aliases": ["Krakow", "Cracow"]
+  },
+  {
+    "name": "Munich",
+    "slug": "munich",
+    "country": "Germany",
+    "lat": 48.1351,
+    "lon": 11.582,
+    "tz": "Europe/Berlin",
+    "aliases": ["München", "Munchen"]
+  },
+  {
+    "name": "Cologne",
+    "slug": "cologne",
+    "country": "Germany",
+    "lat": 50.9375,
+    "lon": 6.9603,
+    "tz": "Europe/Berlin",
+    "aliases": ["Köln", "Koln"]
+  },
+  {
+    "name": "Luxembourg City",
+    "slug": "luxembourg-city",
+    "country": "Luxembourg",
+    "lat": 49.6116,
+    "lon": 6.1319,
+    "tz": "Europe/Luxembourg",
+    "aliases": ["Luxembourg", "Lëtzebuerg"]
+  },
+  {
+    "name": "Ghent",
+    "slug": "ghent",
+    "country": "Belgium",
+    "lat": 51.0543,
+    "lon": 3.7174,
+    "tz": "Europe/Brussels",
+    "aliases": ["Gent", "Gand"]
+  },
+  {
+    "name": "Amsterdam",
+    "slug": "amsterdam",
+    "country": "Netherlands",
+    "lat": 52.3676,
+    "lon": 4.9041,
+    "tz": "Europe/Amsterdam",
+    "aliases": []
+  },
+  {
+    "name": "Palma",
+    "slug": "palma",
+    "country": "Spain",
+    "lat": 39.5696,
+    "lon": 2.6502,
+    "tz": "Europe/Madrid",
+    "aliases": ["Palma de Mallorca"]
+  },
+  {
+    "name": "Madrid",
+    "slug": "madrid",
+    "country": "Spain",
+    "lat": 40.4168,
+    "lon": -3.7038,
+    "tz": "Europe/Madrid",
+    "aliases": []
+  },
+  {
+    "name": "Córdoba",
+    "slug": "cordoba",
+    "country": "Spain",
+    "lat": 37.8882,
+    "lon": -4.7794,
+    "tz": "Europe/Madrid",
+    "aliases": ["Cordoba"]
+  },
+  {
+    "name": "Sevilla",
+    "slug": "sevilla",
+    "country": "Spain",
+    "lat": 37.3891,
+    "lon": -5.9845,
+    "tz": "Europe/Madrid",
+    "aliases": ["Seville"]
+  },
+  {
+    "name": "Ronda",
+    "slug": "ronda",
+    "country": "Spain",
+    "lat": 36.7429,
+    "lon": -5.1662,
+    "tz": "Europe/Madrid",
+    "aliases": []
+  },
+  {
+    "name": "Setenil",
+    "slug": "setenil",
+    "country": "Spain",
+    "lat": 36.8639,
+    "lon": -5.1806,
+    "tz": "Europe/Madrid",
+    "aliases": ["Setenil de las Bodegas"]
+  },
+  {
+    "name": "Granada",
+    "slug": "granada",
+    "country": "Spain",
+    "lat": 37.1773,
+    "lon": -3.5986,
+    "tz": "Europe/Madrid",
+    "aliases": []
+  },
+  {
+    "name": "València",
+    "slug": "valencia",
+    "country": "Spain",
+    "lat": 39.4699,
+    "lon": -0.3763,
+    "tz": "Europe/Madrid",
+    "aliases": ["Valencia"]
+  },
+  {
+    "name": "Peñíscola",
+    "slug": "peniscola",
+    "country": "Spain",
+    "lat": 40.3579,
+    "lon": 0.4069,
+    "tz": "Europe/Madrid",
+    "aliases": ["Peniscola"]
+  },
+  {
+    "name": "Barcelona",
+    "slug": "barcelona",
+    "country": "Spain",
+    "lat": 41.3874,
+    "lon": 2.1686,
+    "tz": "Europe/Madrid",
+    "aliases": []
+  },
+  {
+    "name": "Venice",
+    "slug": "venice",
+    "country": "Italy",
+    "lat": 45.4408,
+    "lon": 12.3155,
+    "tz": "Europe/Rome",
+    "aliases": ["Venezia"]
+  },
+  {
+    "name": "Vienna",
+    "slug": "vienna",
+    "country": "Austria",
+    "lat": 48.2082,
+    "lon": 16.3738,
+    "tz": "Europe/Vienna",
+    "aliases": ["Wien"]
+  },
+  {
+    "name": "Bratislava",
+    "slug": "bratislava",
+    "country": "Slovakia",
+    "lat": 48.1486,
+    "lon": 17.1077,
+    "tz": "Europe/Bratislava",
+    "aliases": ["Pressburg"]
+  },
+  {
+    "name": "Budapest",
+    "slug": "budapest",
+    "country": "Hungary",
+    "lat": 47.4979,
+    "lon": 19.0402,
+    "tz": "Europe/Budapest",
+    "aliases": []
+  },
+  {
+    "name": "Prague",
+    "slug": "prague",
+    "country": "Czechia",
+    "lat": 50.0755,
+    "lon": 14.4378,
+    "tz": "Europe/Prague",
+    "aliases": ["Praha"]
+  },
+  {
+    "name": "Copenhagen",
+    "slug": "copenhagen",
+    "country": "Denmark",
+    "lat": 55.6761,
+    "lon": 12.5683,
+    "tz": "Europe/Copenhagen",
+    "aliases": ["København", "Kobenhavn"]
+  },
+  {
+    "name": "Tallinn",
+    "slug": "tallinn",
+    "country": "Estonia",
+    "lat": 59.437,
+    "lon": 24.7536,
+    "tz": "Europe/Tallinn",
+    "aliases": []
+  },
+  {
+    "name": "Riga",
+    "slug": "riga",
+    "country": "Latvia",
+    "lat": 56.9496,
+    "lon": 24.1052,
+    "tz": "Europe/Riga",
+    "aliases": ["Rīga"]
+  },
+  {
+    "name": "Vilnius",
+    "slug": "vilnius",
+    "country": "Lithuania",
+    "lat": 54.6872,
+    "lon": 25.2797,
+    "tz": "Europe/Vilnius",
+    "aliases": []
+  },
+  {
+    "name": "Frankfurt",
+    "slug": "frankfurt",
+    "country": "Germany",
+    "lat": 50.1109,
+    "lon": 8.6821,
+    "tz": "Europe/Berlin",
+    "aliases": ["Frankfurt am Main"]
+  },
+  {
+    "name": "Dortmund",
+    "slug": "dortmund",
+    "country": "Germany",
+    "lat": 51.5136,
+    "lon": 7.4653,
+    "tz": "Europe/Berlin",
+    "aliases": []
+  }
+]

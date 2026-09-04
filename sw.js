@@ -10,7 +10,7 @@
  * or self-hosted tiles), you can add the tile host here.
  */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `europa-shell-${VERSION}`;
 const DATA = `europa-data-${VERSION}`;
 
@@ -18,6 +18,7 @@ const SHELL_FILES = [
   './',
   './index.html',
   './styles.css?v=2',
+  './nearby.js?v=2',
   './app.js?v=2',
   './favicon.svg',
   './manifest.webmanifest',
@@ -56,7 +57,7 @@ self.addEventListener('fetch', (event) => {
 
   // Trip data: network first, so a fresh publish is picked up immediately,
   // falling back to the last good copy when offline.
-  if (url.pathname.endsWith('trip-data.json')) {
+  if (url.pathname.endsWith('trip-data.json') || url.pathname.endsWith('my-places.json')) {
     event.respondWith(
       fetch(request)
         .then((res) => {

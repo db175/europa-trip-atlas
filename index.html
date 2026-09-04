@@ -33,6 +33,7 @@
 
       <nav aria-label="Sections">
         <a href="#route">Route</a>
+        <a href="#nearby">Nearby</a>
         <a href="#explore">Explore</a>
         <a href="#schedule">Schedule</a>
       </nav>
@@ -52,6 +53,7 @@
 
     <nav id="mobileNav" class="mobile-nav" aria-label="Sections" hidden>
       <a href="#route">Route</a>
+      <a href="#nearby">Nearby</a>
       <a href="#explore">Explore</a>
       <a href="#schedule">Schedule</a>
     </nav>
@@ -121,6 +123,67 @@
         <p class="route-legend" id="routeLegend"></p>
       </section>
 
+      <section id="nearby" class="section nearby-section" aria-labelledby="nearbyHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">On-the-ground suggestions</p>
+            <h2 id="nearbyHeading">What's nearby right now.</h2>
+          </div>
+          <p>Discover top places near your location, tonight's base city, or any anchor place.</p>
+        </div>
+
+        <div class="nearby-panel card">
+          <div class="nearby-controls">
+            <div class="nearby-anchor-row">
+              <span id="nearbyAnchorBadge" class="nearby-anchor-badge">Anchor: Base city</span>
+              <button id="useMyLocationBtn" type="button" class="button ghost compact-btn">
+                <span>📍</span> Use my location
+              </button>
+            </div>
+
+            <div class="nearby-filters">
+              <label><span class="label-text">Anchor city / place</span>
+                <select id="nearbyAnchorSelect">
+                  <option value="auto">Tonight's base (Auto)</option>
+                </select>
+              </label>
+
+              <label><span class="label-text">Radius</span>
+                <select id="nearbyRadiusSelect">
+                  <option value="0.5">0.5 km (~7 min walk)</option>
+                  <option value="1.0">1.0 km (~13 min walk)</option>
+                  <option value="1.5" selected>1.5 km (~20 min walk)</option>
+                  <option value="2.0">2.0 km (~26 min walk)</option>
+                  <option value="5.0">5.0 km</option>
+                  <option value="10.0">10.0 km</option>
+                  <option value="25.0">25.0 km</option>
+                </select>
+              </label>
+
+              <label><span class="label-text">Sort by</span>
+                <select id="nearbySortSelect">
+                  <option value="best">Best match</option>
+                  <option value="nearest">Nearest first</option>
+                </select>
+              </label>
+
+              <label><span class="label-text">Category</span>
+                <select id="nearbyTypeSelect">
+                  <option value="all">All categories</option>
+                </select>
+              </label>
+
+              <label class="checkbox-label">
+                <input id="nearbyOpenOnly" type="checkbox" />
+                <span>Open now only</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="nearbyResults" class="nearby-results-grid" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section class="section stats-section" aria-labelledby="statsHeading">
         <div class="section-heading">
           <div>
@@ -161,6 +224,13 @@
             <span class="label-text">Search</span>
             <span class="search-icon" aria-hidden="true">⌕</span>
             <input id="searchInput" type="search" placeholder="Name, area, or why it made the list…" />
+          </label>
+          <label><span class="label-text">Source</span>
+            <select id="originFilter">
+              <option value="all">All sources</option>
+              <option value="tracker">Tracker</option>
+              <option value="personal">★ My Picks</option>
+            </select>
           </label>
           <label><span class="label-text">City</span><select id="cityFilter"><option value="all">All cities</option></select></label>
           <label><span class="label-text">Type</span><select id="typeFilter"><option value="all">All types</option></select></label>
@@ -223,6 +293,7 @@
     </footer>
 
     <script src="vendor/leaflet/leaflet.js"></script>
+    <script src="nearby.js?v=2"></script>
     <script src="app.js?v=2"></script>
   </body>
 </html>
