@@ -11,8 +11,8 @@ Design rules:
   1. The master markdown is the ONLY source of truth. Nothing is paraphrased,
      re-derived, or invented. Tracker values are copied verbatim.
   2. Every one of the 14 Section 16 columns survives into the JSON.
-  3. Derived helper fields (timeBucket, costTier) are ADDED alongside the raw
-     value, never instead of it.
+  3. Derived helper fields (timeBucket, costTier, lat, lon, coordSource, coordPrecision, hoursParsed)
+     are ADDED alongside the raw value, never instead of it.
   4. The script asserts its own output. If the master file changes shape, this
      fails loudly rather than silently emitting a smaller file.
 
@@ -31,40 +31,29 @@ import re
 import sys
 from pathlib import Path
 
+# Import opening hours parser
+try:
+    from scripts.parse_hours import parse_hours_str
+except ImportError:
+    from parse_hours import parse_hours_str
+
 # ---------------------------------------------------------------------------
-# Reference data. Not present in the master file, so it lives here.
-# Coordinates spot-checked against public gazetteer values.
+# Reference data. Loaded from scripts/city_reference.json.
 # ---------------------------------------------------------------------------
 
+def load_city_reference() -> dict[str, dict]:
+    ref_file = Path(__file__).parent / "city_reference.json"
+    if not ref_file.exists():
+        sys.exit(f"FATAL: {ref_file} not found.")
+    data = json.loads(ref_file.read_text(encoding="utf-8"))
+    return {c["name"]: c for c in data}
+
+CITIES_REF = load_city_reference()
+
+# Fallback CITIES map for backwards compatibility
 CITIES = {
-    "Gdańsk":          {"country": "Poland",      "lat": 54.3520, "lon": 18.6466},
-    "Kraków":          {"country": "Poland",      "lat": 50.0647, "lon": 19.9450},
-    "Munich":          {"country": "Germany",     "lat": 48.1351, "lon": 11.5820},
-    "Cologne":         {"country": "Germany",     "lat": 50.9375, "lon":  6.9603},
-    "Luxembourg City": {"country": "Luxembourg",  "lat": 49.6116, "lon":  6.1319},
-    "Ghent":           {"country": "Belgium",     "lat": 51.0543, "lon":  3.7174},
-    "Amsterdam":       {"country": "Netherlands", "lat": 52.3676, "lon":  4.9041},
-    "Palma":           {"country": "Spain",       "lat": 39.5696, "lon":  2.6502},
-    "Madrid":          {"country": "Spain",       "lat": 40.4168, "lon": -3.7038},
-    "Córdoba":         {"country": "Spain",       "lat": 37.8882, "lon": -4.7794},
-    "Sevilla":         {"country": "Spain",       "lat": 37.3891, "lon": -5.9845},
-    "Ronda":           {"country": "Spain",       "lat": 36.7429, "lon": -5.1662},
-    "Setenil":         {"country": "Spain",       "lat": 36.8639, "lon": -5.1806},
-    "Granada":         {"country": "Spain",       "lat": 37.1773, "lon": -3.5986},
-    "València":        {"country": "Spain",       "lat": 39.4699, "lon": -0.3763},
-    "Peñíscola":       {"country": "Spain",       "lat": 40.3579, "lon":  0.4069},
-    "Barcelona":       {"country": "Spain",       "lat": 41.3874, "lon":  2.1686},
-    "Venice":          {"country": "Italy",       "lat": 45.4408, "lon": 12.3155},
-    "Vienna":          {"country": "Austria",     "lat": 48.2082, "lon": 16.3738},
-    "Bratislava":      {"country": "Slovakia",    "lat": 48.1486, "lon": 17.1077},
-    "Budapest":        {"country": "Hungary",     "lat": 47.4979, "lon": 19.0402},
-    "Prague":          {"country": "Czechia",     "lat": 50.0755, "lon": 14.4378},
-    "Copenhagen":      {"country": "Denmark",     "lat": 55.6761, "lon": 12.5683},
-    "Tallinn":         {"country": "Estonia",     "lat": 59.4370, "lon": 24.7536},
-    "Riga":            {"country": "Latvia",      "lat": 56.9496, "lon": 24.1052},
-    "Vilnius":         {"country": "Lithuania",   "lat": 54.6872, "lon": 25.2797},
-    "Frankfurt":       {"country": "Germany",     "lat": 50.1109, "lon":  8.6821},
-    "Dortmund":        {"country": "Germany",     "lat": 51.5136, "lon":  7.4653},
+    name: {"country": c["country"], "lat": c["lat"], "lon": c["lon"]}
+    for name, c in CITIES_REF.items()
 }
 
 # Day stops: places passed through without sleeping there. Taken from the
@@ -93,15 +82,42 @@ TRACKER_COLUMNS = [
     "opening hours", "approx cost", "priority", "best time", "notes",
 ]
 
+# Coordinate regexes
+RE_MAPS_AT = re.compile(r'@(-?\d+\.\d+),(-?\d+\.\d+)')
+RE_MAPS_3D4D = re.compile(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)')
+RE_MAPS_Q = re.compile(r'[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)')
+RE_COORDS_TXT = re.compile(r'^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)')
 
 # ---------------------------------------------------------------------------
 # Derived-field helpers. These ADD to the raw value; they never replace it.
 # ---------------------------------------------------------------------------
 
+def extract_place_coords(address: str, maps_link: str, city_name: str):
+    addr = (address or "").strip()
+    link = (maps_link or "").strip()
+
+    # 1. Direct coordinates in address field
+    m = RE_COORDS_TXT.match(addr)
+    if m:
+        return float(m.group(1)), float(m.group(2)), "tracker", "exact"
+
+    # 2. Extract from Google Maps URL
+    for reg in (RE_MAPS_AT, RE_MAPS_3D4D, RE_MAPS_Q):
+        m = reg.search(link)
+        if m:
+            return float(m.group(1)), float(m.group(2)), "mapsLink", "exact"
+
+    # 3. Fallback to city centroid
+    city_info = CITIES_REF.get(city_name)
+    if city_info:
+        return city_info["lat"], city_info["lon"], "cityCentroid", "approx"
+
+    return None, None, "none", "approx"
+
+
 def time_bucket(raw: str) -> str:
     """Collapse the tracker's 40 distinct `best time` strings into filterable
-    buckets, without discarding the original. Date-specific values become
-    'specific date' so the constraint stays visible in the UI."""
+    buckets, without discarding the original."""
     v = (raw or "").strip().lower()
     if not v or v == "-":
         return "any"
@@ -109,16 +125,13 @@ def time_bucket(raw: str) -> str:
         return v
     if v == "day/night":
         return "day or night"
-    # Anything mentioning a month, a weekday name or the word "specific"
-    # is a hard date constraint.
     if re.search(r"\b(sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun|specific)\b", v):
         return "specific date"
     return "any"
 
 
 def cost_tier(raw: str) -> str:
-    """Bucket the tracker's 196 distinct cost strings. Raw string is preserved
-    separately as `approx cost`."""
+    """Bucket the tracker's 196 distinct cost strings."""
     v = (raw or "").strip().lower()
     if not v:
         return "unknown"
@@ -132,7 +145,6 @@ def cost_tier(raw: str) -> str:
         return "low"
     if re.search(r"\b(varies|vary|market prices|ticketed|ticket needed|depends)\b", v):
         return "varies"
-    # Try to read an actual number and bucket it in rough EUR terms.
     nums = [float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*(?:\.\d+)?", v)]
     if nums:
         lo = min(nums)
@@ -168,7 +180,6 @@ def read_markdown_table(lines, header_predicate):
     header line satisfies `header_predicate`."""
     for i, line in enumerate(lines):
         if line.startswith("|") and header_predicate(line):
-            # next line must be the separator
             if i + 1 >= len(lines) or not re.match(r"^\|[\s:\-|]+\|$", lines[i + 1]):
                 continue
             rows = []
@@ -195,8 +206,19 @@ def parse_places(lines):
         rec = {col: clean(val) for col, val in zip(TRACKER_COLUMNS, cells)}
         if rec["city"] == "city":
             continue
+
         rec["timeBucket"] = time_bucket(rec["best time"])
         rec["costTier"] = cost_tier(rec["approx cost"])
+
+        lat, lon, src, prec = extract_place_coords(
+            rec["address or coordinates"], rec["maps link"], rec["city"]
+        )
+        rec["lat"] = lat
+        rec["lon"] = lon
+        rec["coordSource"] = src
+        rec["coordPrecision"] = prec
+        rec["hoursParsed"] = parse_hours_str(rec["opening hours"])
+
         places.append(rec)
     return places
 
@@ -232,14 +254,12 @@ def parse_itinerary(lines):
             "branches": [],
         }
 
-        if base_txt in CITIES:
+        if base_txt in CITIES_REF:
             row["baseCity"] = base_txt
-            row["country"] = CITIES[base_txt]["country"]
+            row["country"] = CITIES_REF[base_txt]["country"]
         elif "branch" in base_txt.lower():
             row["kind"] = "branch"
             row["branches"] = split_branches(base_txt, notes)
-            # Branch B (Frankfurt) is the fallback that always works, so the
-            # route line follows it. Branch A is drawn as a spur.
             row["baseCity"] = "Frankfurt"
             row["country"] = "Germany"
         elif "night train" in base_txt.lower():
@@ -248,11 +268,12 @@ def parse_itinerary(lines):
             row["kind"] = "depart"
 
         for stop in DAY_STOPS.get(row["date"], []):
+            stop_ref = CITIES_REF.get(stop, {})
             row["stops"].append({
                 "name": stop,
-                "country": CITIES[stop]["country"],
-                "lat": CITIES[stop]["lat"],
-                "lon": CITIES[stop]["lon"],
+                "country": stop_ref.get("country", ""),
+                "lat": stop_ref.get("lat"),
+                "lon": stop_ref.get("lon"),
             })
 
         itinerary.append(row)
@@ -260,41 +281,37 @@ def parse_itinerary(lines):
 
 
 def split_branches(base_txt, notes):
-    """Pull the two 9 December branches apart so neither is silently dropped.
-    The old data file kept only branch B and lost the Champions League match
-    the master file calls its single most important unknown."""
     branches = []
     for tag, city in (("A", "Dortmund"), ("B", "Frankfurt")):
         m = re.search(rf"BRANCH {tag}:\s*(.+?)(?=\s*BRANCH [AB]:|$)", notes, re.S)
+        city_ref = CITIES_REF.get(city, {})
         branches.append({
             "id": tag,
             "city": city,
-            "country": CITIES[city]["country"],
-            "lat": CITIES[city]["lat"],
-            "lon": CITIES[city]["lon"],
+            "country": city_ref.get("country", ""),
+            "lat": city_ref.get("lat"),
+            "lon": city_ref.get("lon"),
             "notes": m.group(1).strip().rstrip(".") if m else "",
         })
     return branches
 
 
 def build_route(itinerary):
-    """Ordered legs, collapsing only CONSECUTIVE repeats. This is what makes
-    the two separate Cologne blocks both appear on the map; the old code used
-    a global unique() and drew Cologne once."""
     route = []
     for row in itinerary:
         city = row["baseCity"]
         if not city:
             continue
+        city_ref = CITIES_REF.get(city, {})
         if route and route[-1]["city"] == city:
             route[-1]["until"] = row["date"]
             route[-1]["nights"] += 1
             continue
         route.append({
             "city": city,
-            "country": CITIES[city]["country"],
-            "lat": CITIES[city]["lat"],
-            "lon": CITIES[city]["lon"],
+            "country": city_ref.get("country", ""),
+            "lat": city_ref.get("lat"),
+            "lon": city_ref.get("lon"),
             "from": row["date"],
             "until": row["date"],
             "nights": 1,
@@ -303,7 +320,7 @@ def build_route(itinerary):
 
 
 # ---------------------------------------------------------------------------
-# Validation. The whole point of this file.
+# Validation.
 # ---------------------------------------------------------------------------
 
 def validate(places, itinerary, route):
@@ -319,7 +336,6 @@ def validate(places, itinerary, route):
     if len(itinerary) != EXPECTED_DAYS:
         errors.append(f"expected {EXPECTED_DAYS} days, got {len(itinerary)}")
 
-    # Every calendar day between start and end must be present exactly once.
     seen = [dt.date.fromisoformat(r["date"]) for r in itinerary]
     if len(set(seen)) != len(seen):
         errors.append("duplicate dates in itinerary")
@@ -329,19 +345,16 @@ def validate(places, itinerary, route):
             errors.append(f"missing itinerary day {cursor}")
         cursor += dt.timedelta(days=1)
 
-    # Every place city must be mappable.
     for city in sorted({p["city"] for p in places}):
-        if city not in CITIES:
-            errors.append(f"place city '{city}' has no coordinates in CITIES")
+        if city not in CITIES_REF:
+            errors.append(f"place city '{city}' has no entry in CITIES_REF")
 
-    # Every field must survive.
     for p in places:
         for col in TRACKER_COLUMNS:
             if col not in p:
                 errors.append(f"place '{p.get('name')}' is missing column '{col}'")
                 break
 
-    # The 9 December branch must carry both options.
     branch_days = [r for r in itinerary if r["kind"] == "branch"]
     if not branch_days:
         errors.append("no branch day found; the Dortmund/Frankfurt split was lost")
@@ -378,7 +391,21 @@ def main():
 
     cities_used = sorted({p["city"] for p in places})
     slept_in = sorted({r["country"] for r in itinerary if r["country"]})
-    visited = sorted({CITIES[c]["country"] for c in cities_used} | set(slept_in))
+    visited = sorted({CITIES_REF[c]["country"] for c in cities_used} | set(slept_in))
+
+    city_dict = {}
+    for c in sorted(set(cities_used) | {r["baseCity"] for r in itinerary if r["baseCity"]} | {"Dortmund"}):
+        ref = CITIES_REF[c]
+        p_count = sum(1 for p in places if p["city"] == c)
+        city_dict[c] = {
+            "name": ref["name"],
+            "slug": ref.get("slug", c.lower()),
+            "country": ref["country"],
+            "lat": ref["lat"],
+            "lon": ref["lon"],
+            "tz": ref.get("tz", "UTC"),
+            "placeCount": p_count
+        }
 
     payload = {
         "meta": {
@@ -396,15 +423,7 @@ def main():
             "countriesSleptIn": len(slept_in),
             "heavyDays": sum(1 for r in itinerary if r["heavy"]),
         },
-        "cities": {
-            c: {
-                "country": CITIES[c]["country"],
-                "lat": CITIES[c]["lat"],
-                "lon": CITIES[c]["lon"],
-            }
-            for c in sorted(set(cities_used) | {r["baseCity"] for r in itinerary if r["baseCity"]}
-                            | {"Dortmund"})
-        },
+        "cities": city_dict,
         "route": route,
         "places": places,
         "itinerary": itinerary,

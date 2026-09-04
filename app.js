@@ -58,6 +58,7 @@ const state = {
   cities: {},
   route: [],
   places: [],
+  myPlaces: [],
   itinerary: [],
   visibleCount: PAGE_SIZE,
   heavyOnly: false,
@@ -80,21 +81,58 @@ fetch('data/trip-data.json?v=2')
     return r.json();
   })
   .then((data) => {
+    const trackerPlaces = (data.places || []).map((p) => Object.assign({}, p, { origin: 'tracker' }));
     Object.assign(state, {
       meta: data.meta || {},
       cities: data.cities || {},
       route: data.route || [],
-      places: data.places || [],
+      places: trackerPlaces,
       itinerary: data.itinerary || [],
     });
+
+    return fetch('data/my-places.json?v=2')
+      .then((r) => (r.ok ? r.json() : { places: [] }))
+      .catch((err) => {
+        console.warn('my-places.json could not be loaded:', err);
+        return { places: [] };
+      });
+  })
+  .then((myPlacesData) => {
+    const personalPlaces = (myPlacesData.places || []).map((p) =>
+      Object.assign({}, p, {
+        origin: 'personal',
+        timeBucket: p.timeBucket || deriveTimeBucket(p['best time']),
+        costTier: p.costTier || deriveCostTier(p['approx cost']),
+      })
+    );
+    state.myPlaces = personalPlaces;
+    state.places = state.places.concat(personalPlaces);
     init();
   })
   .catch((err) => {
-    // The old build swallowed this with a bare .catch(() => ...), which made
-    // every field failure undiagnosable.
     console.error('Trip data could not be loaded:', err);
     showFatal(err);
   });
+
+function deriveTimeBucket(raw) {
+  const v = (raw || '').trim().toLowerCase();
+  if (!v || v === '-') return 'any';
+  if (['day', 'night', 'weekday', 'weekend'].includes(v)) return v;
+  if (v === 'day/night') return 'day or night';
+  if (/\b(sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun|specific)\b/.test(v)) return 'specific date';
+  return 'any';
+}
+
+function deriveCostTier(raw) {
+  const v = (raw || '').trim().toLowerCase();
+  if (!v) return 'unknown';
+  if (/\b(free|eurail[- ]covered|eurail free|no charge)\b/.test(v) || v === '0') return 'free';
+  if (v.includes('€€€')) return 'high';
+  if (v.includes('€€')) return 'moderate';
+  if (/\b(cheap|small fee|low)\b/.test(v) || v === '€') return 'low';
+  if (/\b(varies|vary|market prices|ticketed|ticket needed|depends)\b/.test(v)) return 'varies';
+  return 'unknown';
+}
 
 function showFatal(err) {
   const main = $('main');
@@ -123,6 +161,7 @@ function init() {
   step('charts', drawVisuals);
   step('map', initMap);
   step('routeStrip', renderRoute);
+  step('nearby', initNearbyPanel);
   step('places', renderPlaces);
   step('itinerary', renderItinerary);
   step('listeners', bindListeners);
@@ -132,11 +171,31 @@ function init() {
 
 function renderStats() {
   const m = state.meta;
-  $('#placeCount').textContent = m.places ?? state.places.length;
+  const trackerCount = m.places ?? state.places.filter((p) => p.origin === 'tracker').length;
+  const personalCount = state.myPlaces.length;
+
+  $('#placeCount').textContent = trackerCount;
+
+  if (personalCount > 0) {
+    const parent = $('#placeCount').parentElement;
+    if (parent) {
+      let sub = parent.querySelector('.stat-sub');
+      if (!sub) {
+        sub = document.createElement('small');
+        sub.className = 'stat-sub';
+        sub.style.display = 'block';
+        sub.style.fontSize = '11px';
+        sub.style.color = 'var(--lime)';
+        parent.appendChild(sub);
+      }
+      sub.textContent = `+${personalCount} personal`;
+    }
+  }
+
   $('#cityCount').textContent = m.cities ?? unique(state.places.map((p) => p.city)).length;
   $('#dayCount').textContent = m.days ?? state.itinerary.length;
   $('#mustCount').textContent =
-    m.musts ?? state.places.filter((p) => p.priority === 'Must').length;
+    m.musts ?? state.places.filter((p) => p.priority === 'Must' && p.origin === 'tracker').length;
   $('#statGrid').setAttribute('aria-busy', 'false');
 
   if (m.generatedAt) {
@@ -185,6 +244,148 @@ function fillFilters() {
   fillSelect('timeFilter', unique(state.places.map((p) => p.timeBucket)).sort());
   fillSelect('costFilter', unique(state.places.map((p) => p.costTier)).sort());
   fillSelect('scheduleCity', unique(state.itinerary.map((r) => r.baseCity)));
+}
+
+/* ------------------------------------------------------------- nearby ---- */
+
+function resolveCurrentBaseCity() {
+  const today = startOfDay(new Date());
+  const rows = state.itinerary.filter((r) => parseDate(r.date));
+  if (!rows.length) return state.cities['Gdańsk'] || Object.values(state.cities)[0];
+
+  const first = parseDate(rows[0].date);
+  const last = parseDate(rows[rows.length - 1].date);
+  let row = rows[0];
+
+  if (today >= first && today <= last) {
+    row = rows.find((r) => sameDay(parseDate(r.date), today)) || rows[0];
+  }
+
+  const cName = row.baseCity || row.base || 'Gdańsk';
+  return state.cities[cName] || { name: cName, lat: 54.3520, lon: 18.6466, tz: 'Europe/Warsaw' };
+}
+
+function initNearbyPanel() {
+  const anchorSelect = $('#nearbyAnchorSelect');
+  const typeSelect = $('#nearbyTypeSelect');
+  if (!anchorSelect || !window.Nearby) return;
+
+  // Clear previous non-auto options
+  anchorSelect.innerHTML = '<option value="auto">Tonight\'s base (Auto)</option>';
+
+  // Group 1: Cities
+  const cityOptGroup = document.createElement('optgroup');
+  cityOptGroup.label = 'Cities';
+  const sortedCities = Object.keys(state.cities).sort();
+  sortedCities.forEach((c) => {
+    cityOptGroup.insertAdjacentHTML('beforeend', `<option value="city:${esc(c)}">${esc(c)}</option>`);
+  });
+  anchorSelect.appendChild(cityOptGroup);
+
+  // Fill type select
+  if (typeSelect) {
+    fillSelect('nearbyTypeSelect', unique(state.places.map((p) => p.type)).sort());
+  }
+
+  renderNearby();
+}
+
+function resolveAnchor() {
+  const selVal = $('#nearbyAnchorSelect') ? $('#nearbyAnchorSelect').value : 'auto';
+
+  if (state.userLocation && selVal === 'gps') {
+    return state.userLocation;
+  }
+
+  if (selVal.startsWith('city:')) {
+    const cName = selVal.replace('city:', '');
+    const c = state.cities[cName];
+    if (c) return { lat: c.lat, lon: c.lon, name: cName, tz: c.tz, source: 'City centroid' };
+  }
+
+  // Default / Auto: tonight's base city
+  const base = resolveCurrentBaseCity();
+  return {
+    lat: base.lat,
+    lon: base.lon,
+    name: base.name || 'Base city',
+    tz: base.tz || 'Europe/Warsaw',
+    source: 'Tonight\'s base',
+  };
+}
+
+function renderNearby() {
+  const container = $('#nearbyResults');
+  const badge = $('#nearbyAnchorBadge');
+  if (!container || !window.Nearby) return;
+
+  const anchor = resolveAnchor();
+  if (badge) {
+    badge.textContent = `Anchor: ${anchor.name} (${anchor.source || 'Manual'})`;
+  }
+
+  const radiusKm = parseFloat($('#nearbyRadiusSelect')?.value || '1.5');
+  const sortMode = $('#nearbySortSelect')?.value || 'best';
+  const typeFilter = $('#nearbyTypeSelect')?.value || 'all';
+  const openNowOnly = $('#nearbyOpenOnly')?.checked || false;
+
+  const ranked = window.Nearby.rankPlaces(state.places, anchor, {
+    radiusKm: radiusKm,
+    sortMode: sortMode,
+    typeFilter: typeFilter,
+    openNowOnly: openNowOnly,
+    date: new Date(),
+    timeZone: anchor.tz || 'UTC',
+  });
+
+  const results = ranked.results;
+
+  if (!results.length) {
+    const outside = ranked.nearestOutside;
+    let emptyMsg = `<p class="empty">Nothing saved within ${radiusKm} km of ${esc(anchor.name)}.`;
+    if (outside) {
+      emptyMsg += `<br>Nearest place is <b>${esc(outside.name)}</b> (${outside.distanceKm.toFixed(1)} km away, ~${outside.walkMinutes} min walk).</p>`;
+    } else {
+      emptyMsg += ` Try expanding the radius.</p>`;
+    }
+    container.innerHTML = emptyMsg;
+    return;
+  }
+
+  container.innerHTML = results.map(nearbyCard).join('');
+}
+
+function nearbyCard(p) {
+  const priority = p.priority || 'Nice';
+  const maps = p['maps link'];
+  const isPersonal = p.origin === 'personal';
+  const openStatus = p.openStatus || 'unknown';
+  const openLabel = p.openLabel || 'Hours unconfirmed';
+  const isApprox = p.coordPrecision === 'approx' || p.coordSource === 'cityCentroid';
+
+  const distText = isApprox
+    ? '📍 City area (approx location)'
+    : `📍 ${p.distanceKm.toFixed(1)} km (~${p.walkMinutes}m walk)`;
+
+  return (
+    '<article class="nearby-card">' +
+    '<div class="nearby-meta-row">' +
+    `<span class="dist-chip${isApprox ? ' approx' : ''}">${distText}</span>` +
+    `<span class="hours-chip ${openStatus}">${esc(openLabel)}</span>` +
+    '</div>' +
+    `<div class="place-top"><span class="tag">${esc(p.type)}</span>` +
+    (isPersonal ? '<span class="mypick-badge">★ MY PICK</span>' : '') +
+    `<span class="priority ${priority === 'Must' ? 'must' : ''}">${esc(priority)}</span></div>` +
+    `<h3>${esc(p.name)}</h3>` +
+    `<p class="place-city">${esc(p.city)} · ${esc(p.neighbourhood || 'City centre')}</p>` +
+    `<p class="why">${esc(p['why it made the list'] || 'Saved for this trip.')}</p>` +
+    '<div class="place-bottom">' +
+    `<span>${esc(p['best time'] || 'Flexible')} · ${esc(p['approx cost'] || 'Price TBC')}</span>` +
+    (maps
+      ? `<a href="${esc(maps)}" target="_blank" rel="noopener noreferrer">Open map <span aria-hidden="true">↗</span></a>`
+      : '') +
+    '</div></article>'
+  );
 }
 
 function fillSelect(id, items) {
@@ -397,6 +598,7 @@ function selectCity(city) {
 
 function filteredPlaces() {
   const q = $('#searchInput').value.trim().toLowerCase();
+  const origin = $('#originFilter') ? $('#originFilter').value : 'all';
   const city = $('#cityFilter').value;
   const type = $('#typeFilter').value;
   const priority = $('#priorityFilter').value;
@@ -409,6 +611,7 @@ function filteredPlaces() {
       const hay = SEARCH_FIELDS.map((f) => p[f] || '').join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    if (origin !== 'all' && (p.origin || 'tracker') !== origin) return false;
     if (city !== 'all' && p.city !== city) return false;
     if (type !== 'all' && p.type !== type) return false;
     if (priority !== 'all' && p.priority !== priority) return false;
@@ -449,6 +652,7 @@ function placeCard(p) {
   const maps = p['maps link'];
   const hours = p['opening hours'];
   const confidence = p.confidence;
+  const isPersonal = p.origin === 'personal';
 
   // Fields the old build dropped entirely: opening hours, notes, confidence,
   // source and date, address. They are the ones that answer "is it open".
@@ -459,6 +663,7 @@ function placeCard(p) {
   return (
     '<article class="place-card">' +
     `<div class="place-top"><span class="tag">${esc(p.type)}</span>` +
+    (isPersonal ? '<span class="mypick-badge">★ MY PICK</span>' : '') +
     `<span class="priority ${priority === 'Must' ? 'must' : ''}">${esc(priority)}</span></div>` +
     `<h3>${esc(p.name)}</h3>` +
     `<p class="place-city">${esc(p.city)} · ${esc(p.neighbourhood || 'City centre')}</p>` +
@@ -542,19 +747,78 @@ function kindLabel(kind) {
 
 function bindListeners() {
   const filterIds = [
-    'searchInput', 'cityFilter', 'typeFilter',
+    'searchInput', 'originFilter', 'cityFilter', 'typeFilter',
     'priorityFilter', 'timeFilter', 'costFilter', 'sortSelect',
   ];
   filterIds.forEach((id) => {
-    $('#' + id).addEventListener('input', () => {
-      state.visibleCount = PAGE_SIZE;
-      renderPlaces();
-    });
+    const el = $('#' + id);
+    if (el) {
+      el.addEventListener('input', () => {
+        state.visibleCount = PAGE_SIZE;
+        renderPlaces();
+      });
+    }
   });
 
+  // Nearby panel controls
+  ['nearbyAnchorSelect', 'nearbyRadiusSelect', 'nearbySortSelect', 'nearbyTypeSelect'].forEach((id) => {
+    const el = $('#' + id);
+    if (el) el.addEventListener('input', renderNearby);
+  });
+
+  if ($('#nearbyOpenOnly')) {
+    $('#nearbyOpenOnly').addEventListener('change', renderNearby);
+  }
+
+  const gpsBtn = $('#useMyLocationBtn');
+  if (gpsBtn && navigator.geolocation) {
+    gpsBtn.addEventListener('click', () => {
+      gpsBtn.disabled = true;
+      gpsBtn.textContent = 'Locating...';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          state.userLocation = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            name: 'Device GPS',
+            source: 'Device Location',
+          };
+          const sel = $('#nearbyAnchorSelect');
+          if (sel) {
+            let gpsOpt = sel.querySelector('option[value="gps"]');
+            if (!gpsOpt) {
+              gpsOpt = document.createElement('option');
+              gpsOpt.value = 'gps';
+              gpsOpt.textContent = '📍 Device GPS Location';
+              sel.insertBefore(gpsOpt, sel.firstChild);
+            }
+            sel.value = 'gps';
+          }
+          gpsBtn.disabled = false;
+          gpsBtn.innerHTML = '<span>📍</span> Use my location';
+          renderNearby();
+        },
+        (err) => {
+          console.warn('Geolocation error or permission denied:', err);
+          gpsBtn.disabled = false;
+          gpsBtn.innerHTML = '<span>📍</span> Location unavailable';
+          setTimeout(() => {
+            gpsBtn.innerHTML = '<span>📍</span> Use my location';
+          }, 3000);
+          renderNearby();
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    });
+  } else if (gpsBtn) {
+    gpsBtn.style.display = 'none';
+  }
+
   $('#clearFilters').addEventListener('click', () => {
-    ['cityFilter', 'typeFilter', 'priorityFilter', 'timeFilter', 'costFilter'].forEach(
-      (id) => ($('#' + id).value = 'all')
+    ['originFilter', 'cityFilter', 'typeFilter', 'priorityFilter', 'timeFilter', 'costFilter'].forEach(
+      (id) => {
+        if ($('#' + id)) $('#' + id).value = 'all';
+      }
     );
     $('#searchInput').value = '';
     $('#sortSelect').value = 'priority';

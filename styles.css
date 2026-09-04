@@ -536,6 +536,124 @@ footer :focus-visible {
 
 /* -------------------------------------------------------------- cards --- */
 
+.nearby-section {
+  background: var(--paper);
+}
+
+.nearby-panel {
+  padding: 24px;
+}
+
+.nearby-anchor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.nearby-anchor-badge {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--deep);
+  background: var(--chip);
+  padding: 6px 14px;
+  border-radius: 100px;
+}
+
+.compact-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.nearby-filters {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 24px;
+}
+
+.nearby-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.nearby-filters select {
+  width: 100%;
+  font: inherit;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px;
+  color: var(--ink);
+}
+
+.checkbox-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding-bottom: 10px;
+  white-space: nowrap;
+}
+
+.checkbox-label input {
+  width: auto !important;
+  margin: 0;
+}
+
+.nearby-results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.nearby-card {
+  border: 1px solid var(--line);
+  padding: 16px;
+  background: var(--card);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nearby-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dist-chip {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent-text);
+  background: var(--warm);
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.hours-chip {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hours-chip.open { color: #2e7d32; }
+.hours-chip.closed { color: var(--accent-text); }
+.hours-chip.unknown { color: var(--muted); }
+
 .stats-section {
   background: var(--paper);
 }
@@ -665,7 +783,7 @@ footer :focus-visible {
 .controls {
   padding: 16px;
   display: grid;
-  grid-template-columns: 2.3fr repeat(6, 1fr);
+  grid-template-columns: 2fr repeat(7, 1fr);
   gap: 12px;
   align-items: end;
 }
@@ -792,6 +910,18 @@ footer :focus-visible {
 .priority.must {
   background: var(--lime);
   color: var(--deep);
+}
+
+.mypick-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: 20px;
+  padding: 4px 8px;
+  background: var(--ink);
+  color: var(--lime);
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .place-card h3 {
@@ -1034,7 +1164,10 @@ footer code {
 
 @media (max-width: 1100px) {
   .controls {
-    grid-template-columns: 2fr repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .controls .search {
+    grid-column: span 4;
   }
 }
 
@@ -1044,6 +1177,12 @@ footer code {
     gap: 45px;
     padding-top: 75px;
     padding-bottom: 75px;
+  }
+  .nearby-filters {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .nearby-results-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
   .hero-panel {
     max-width: 560px;
@@ -1066,6 +1205,10 @@ footer code {
 }
 
 @media (max-width: 620px) {
+  .nearby-filters,
+  .nearby-results-grid {
+    grid-template-columns: 1fr;
+  }
   :root {
     --topbar-h: 64px;
   }

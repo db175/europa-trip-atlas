@@ -41,7 +41,9 @@ jobs:
       # extractor produces, or if the JSON is malformed. Regenerating the
       # data is a manual step because the master file is not committed.
       - name: Validate published data
-        run: python3 scripts/validate_trip_data.py data/trip-data.json
+        run: |
+          python3 scripts/validate_trip_data.py data/trip-data.json
+          python3 scripts/validate_my_places.py data/my-places.json
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
